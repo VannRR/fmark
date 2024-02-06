@@ -32,11 +32,9 @@ impl Menu {
                 &["-i", "-l", rows, "-p", prompt],
                 Some(menu_items),
             ),
-            Self::Dmenu { rows } => self.run_command(
-                "dmenu",
-                &["-i", "-l", rows, "-p", prompt],
-                Some(menu_items),
-            ),
+            Self::Dmenu { rows } => {
+                self.run_command("dmenu", &["-i", "-l", rows, "-p", prompt], Some(menu_items))
+            }
             Self::Rofi { rows } => self.run_command(
                 "rofi",
                 &["-dmenu", "-i", "-l", rows, "-p", prompt],

@@ -112,14 +112,24 @@ impl Data {
         self.bookmarks.get(url)
     }
 
-    pub fn set_bookmark(&mut self, category: String, title: String, url: String) {
+    pub fn set_bookmark(
+        &mut self,
+        category: String,
+        title: String,
+        current_url: String,
+        new_url: Option<String>,
+    ) {
         let formatted_category = Data::format_category(&category);
         if !self.categories.contains(&formatted_category) {
             self.categories.push(formatted_category.clone());
         }
         let formatted_title = Data::format_title(&title);
-        let bookmark = Bookmark::new(formatted_category, formatted_title, url.clone());
-        self.bookmarks.insert(url, bookmark);
+        let url = match new_url {
+            Some(url) => url,
+            None => current_url.clone(),
+        };
+        let bookmark = Bookmark::new(formatted_category, formatted_title, url);
+        self.bookmarks.insert(current_url, bookmark);
     }
 
     pub fn remove_bookmark(&mut self, url: &str) {
@@ -130,6 +140,7 @@ impl Data {
             }
         }
     }
+
     pub fn generate_plain_text(&self) -> String {
         let mut plain_text = String::new();
 
@@ -139,17 +150,28 @@ impl Data {
         for category in sorted_categories {
             plain_text.push_str(&format!("{}\n", category));
 
-            let mut bookmarks: Vec<_> = self
-                .bookmarks
-                .values()
-                .filter(|b| b.category() == category)
-                .collect();
-            bookmarks.sort_by(|a, b| Data::alphabetic_sort(&a.title(), &b.title()));
+            let bookmarks = self.generate_category_plain_text(&category);
+            plain_text.push_str(&bookmarks);
 
-            for bookmark in bookmarks {
-                plain_text.push_str(&bookmark.formatted_line());
-            }
             plain_text.push('\n');
+        }
+
+        plain_text
+    }
+
+    pub fn generate_category_plain_text(&self, category: &str) -> String {
+        let mut plain_text = String::new();
+        plain_text.push_str(&format!("{}\n", category));
+
+        let mut bookmarks: Vec<_> = self
+            .bookmarks
+            .values()
+            .filter(|b| b.category() == category)
+            .collect();
+        bookmarks.sort_by(|a, b| Data::alphabetic_sort(&a.title(), &b.title()));
+
+        for bookmark in bookmarks {
+            plain_text.push_str(&bookmark.formatted_line());
         }
 
         plain_text
@@ -209,9 +231,9 @@ impl Data {
         title
     }
 
-    pub fn fields_from_line(bookmark_line: &str) -> Result<Fields, String> {
+    pub fn fields_from_line(bookmark_line: &str) -> Option<Fields> {
         if !bookmark_line.contains(TITLE_URL_SEPARATOR) {
-            return Err(format!("Invalid bookmark line: {}", bookmark_line));
+            return None;
         }
 
         let bookmark = bookmark_line
@@ -221,7 +243,7 @@ impl Data {
         let title = Data::format_title(bookmark[0]);
         let url = bookmark[1].to_string();
 
-        Ok(Fields::new(title, url))
+        Some(Fields::new(title, url))
     }
 
     fn parse(&mut self) -> Result<(), String> {
@@ -234,12 +256,15 @@ impl Data {
             if line.starts_with(CATEGORY_MARK) && line.contains(CATEGORY_MARK) {
                 self.categories.push(Data::format_category(line));
             } else if line.contains(TITLE_URL_SEPARATOR) {
-                let field = Data::fields_from_line(line)?;
+                let field = Data::fields_from_line(line);
                 let category = self.categories.last().unwrap().clone();
-                self.bookmarks.insert(
-                    field.url.clone(),
-                    Bookmark::new(category, field.title(), field.url()),
-                );
+
+                if let Some(field) = field {
+                    self.bookmarks.insert(
+                        field.url.clone(),
+                        Bookmark::new(category, field.title(), field.url()),
+                    );
+                }
             }
         }
         Ok(())
@@ -248,12 +273,12 @@ impl Data {
     fn alphabetic_sort(a: &String, b: &String) -> std::cmp::Ordering {
         let a = a
             .chars()
-            .filter(|c| c.is_alphabetic())
+            .filter(|c| c.is_ascii_alphabetic() || c.is_ascii_digit())
             .collect::<String>()
             .to_lowercase();
         let b = b
             .chars()
-            .filter(|c| c.is_alphabetic())
+            .filter(|c| c.is_ascii_alphabetic() || c.is_ascii_digit())
             .collect::<String>()
             .to_lowercase();
 
@@ -265,5 +290,14 @@ impl Data {
         }
 
         a.len().cmp(&b.len())
+    }
+
+    pub fn template() -> String {
+        let mut template = String::new();
+        template.push_str(&Self::format_category("A Category"));
+        template.push('\n');
+        template.push_str(&Self::format_title("Project's Github"));
+        template.push_str(" https://github.com/vannrr/bookmarks/");
+        template
     }
 }
