@@ -148,8 +148,6 @@ impl Data {
         sorted_categories.sort_by(Data::alphabetic_sort);
 
         for category in sorted_categories {
-            plain_text.push_str(&format!("{}\n", category));
-
             let bookmarks = self.generate_category_plain_text(&category);
             plain_text.push_str(&bookmarks);
 

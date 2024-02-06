@@ -155,7 +155,7 @@ fn remove(menu_program: Menu, bookmarks_data: &mut Data) -> Result<(), String> {
         None => return Ok(()),
     };
 
-    let answer = menu_program.input("Are you sure? (y/n)")?;
+    let answer = menu_program.input(&format!("Remove {}? (y/n)", fields.title().trim()))?;
     if answer.to_lowercase() != "y" {
         return Ok(());
     }
