@@ -5,6 +5,7 @@ pub enum Menu {
     Bemenu { rows: String },
     Dmenu { rows: String },
     Rofi { rows: String },
+    Fzf { rows: String },
 }
 
 impl Menu {
@@ -13,15 +14,30 @@ impl Menu {
             "bemenu" => Ok(Self::Bemenu { rows }),
             "dmenu" => Ok(Self::Dmenu { rows }),
             "rofi" => Ok(Self::Rofi { rows }),
+            "fzf" => Ok(Self::Fzf { rows }),
             _ => Err(format!("Unsupported menu program: {}", menu_program)),
         }
     }
 
-    pub fn input(&self, prompt: &str) -> Result<String, String> {
+    pub fn input(&self, query: &str, prompt: &str) -> Result<String, String> {
         match self {
-            Self::Bemenu { rows: _ } => self.run_command("bemenu", &["-p", prompt], None),
-            Self::Dmenu { rows: _ } => self.run_command("dmenu", &["-p", prompt], None),
-            Self::Rofi { rows: _ } => self.run_command("rofi", &["-dmenu", "-p", prompt], None),
+            Self::Bemenu { rows: _ } => {
+                self.run_command("bemenu", &["-F", query, "-p", prompt], None)
+            }
+            Self::Dmenu { rows: _ } => {
+                self.run_command("dmenu", &["-F", query, "-p", prompt], None)
+            }
+            Self::Rofi { rows: _ } => {
+                self.run_command("rofi", &["-dmenu", "-F", query, "-p", prompt], None)
+            }
+            Self::Fzf { rows: _ } => {
+                let prompt = format!("{}> ", prompt);
+                self.run_command(
+                    "fzf",
+                    &["-q", query, "--print-query", "--prompt", &prompt],
+                    Some(""),
+                )
+            }
         }
     }
 
@@ -40,6 +56,14 @@ impl Menu {
                 &["-dmenu", "-i", "-l", rows, "-p", prompt],
                 Some(menu_items),
             ),
+            Self::Fzf { rows: _ } => {
+                let prompt = format!("{}> ", prompt);
+                self.run_command(
+                    "fzf",
+                    &["--print-query", "--prompt", &prompt],
+                    Some(menu_items),
+                )
+            }
         }
     }
 

@@ -1,14 +1,25 @@
 use std::env;
 use std::path::PathBuf;
 
-use crate::Data;
+use crate::{Bookmark, Data};
 
-const SUPPORTED_MENU_PROGRAMS: [&str; 3] = ["bemenu", "dmenu", "rofi"];
+const SUPPORTED_MENU_PROGRAMS: [&str; 4] = ["bemenu", "dmenu", "rofi", "fzf"];
 const ENV_VARIABLE: &str = "BM_DEFAULT_OPTS";
 const DEFAULT_MENU_PROGRAM: &str = "bemenu";
 const DEFAULT_BROWSER: &str = "firefox";
 const DEFAULT_BOOKMARK_FILE_PATH: &str = ".bookmarks";
 const DEFAULT_MENU_ROWS: &str = "20";
+
+const MENU_ARG_LONG: &str = "--menu";
+const MENU_ARG_SHORT: &str = "-m";
+const BROWSER_ARG_LONG: &str = "--browser";
+const BROWSER_ARG_SHORT: &str = "-b";
+const PATH_ARG_LONG: &str = "--path";
+const PATH_ARG_SHORT: &str = "-p";
+const ROWS_ARG_LONG: &str = "--rows";
+const ROWS_ARG_SHORT: &str = "-r";
+const HELP_ARG_LONG: &str = "--help";
+const HELP_ARG_SHORT: &str = "-h";
 
 struct PendingArgs {
     menu_program: Option<String>,
@@ -43,7 +54,7 @@ impl Arguments {
         };
 
         let menu_program = Self::get_menu_program(pending_values.menu_program)?;
-        let browser = Self::get_browser(pending_values.browser)?;
+        let browser = Self::get_browser(pending_values.browser);
         let bookmark_file_path = Self::get_bookmark_file_path(pending_values.bookmark_file_path)?;
         let menu_rows = Self::get_menu_rows(pending_values.menu_rows);
         Ok(Self {
@@ -83,19 +94,24 @@ impl Arguments {
         };
 
         let process_args = |args: Vec<String>, p: &mut PendingArgs| -> Result<(), String> {
-            for i in 0..args.len() {
-                if i + 1 < args.len() {
-                    match args[i].as_str() {
-                        "--menu" | "-m" => p.menu_program = Some(args[i + 1].clone()),
-                        "--browser" | "-b" => p.browser = Some(args[i + 1].clone()),
-                        "--path" | "-p" => p.bookmark_file_path = Some(args[i + 1].clone()),
-                        "--rows" | "-r" => p.menu_rows = Some(args[i + 1].clone()),
-                        _ => return Err(Self::unrecognized_arg_message(&args[i])),
-                    }
-                } else if matches!(args[i].as_str(), "--help" | "-h") {
-                    p.help = true;
+            if args.contains(&HELP_ARG_LONG.to_string())
+                || args.contains(&HELP_ARG_SHORT.to_string())
+            {
+                p.help = true;
+                return Ok(());
+            }
+            for i in (0..args.len() - 1).step_by(2) {
+                let arg = args[i].as_str();
+                let value = Some(args[i + 1].clone());
+                match arg {
+                    MENU_ARG_LONG | MENU_ARG_SHORT => p.menu_program = value,
+                    BROWSER_ARG_LONG | BROWSER_ARG_SHORT => p.browser = value,
+                    PATH_ARG_LONG | PATH_ARG_SHORT => p.bookmark_file_path = value,
+                    ROWS_ARG_LONG | ROWS_ARG_SHORT => p.menu_rows = value,
+                    _ => return Err(Self::unrecognized_arg_message(arg)),
                 }
             }
+
             Ok(())
         };
 
@@ -117,18 +133,17 @@ impl Arguments {
         };
 
         if SUPPORTED_MENU_PROGRAMS.contains(&menu_program.as_str()) {
-            Ok(Self::find_program(&menu_program)?)
+            Ok(menu_program)
         } else {
             Err(format!("Unsupported menu program: {}", menu_program))
         }
     }
 
-    fn get_browser(browser: Option<String>) -> Result<String, String> {
-        let browser = match browser {
+    fn get_browser(browser: Option<String>) -> String {
+        match browser {
             Some(browser) => browser,
             None => DEFAULT_BROWSER.to_string(),
-        };
-        Self::find_program(&browser)
+        }
     }
 
     fn get_bookmark_file_path(path: Option<String>) -> Result<PathBuf, String> {
@@ -148,7 +163,7 @@ impl Arguments {
                 if default_path.exists() {
                     Ok(default_path)
                 } else {
-                    let template = Data::template();
+                    let template = Bookmark::default().formatted_line();
                     match std::fs::write(&default_path, template) {
                         Ok(_) => Ok(default_path),
                         Err(error) => Err(format!("Failed to create bookmark file: {}", error)),
@@ -171,50 +186,30 @@ impl Arguments {
         }
     }
 
-    fn find_program(name: &str) -> Result<String, String> {
-        let paths: Vec<PathBuf> = env::var("PATH")
-            .map_err(|error| format!("Failed to get PATH environment variable: {}", error))?
-            .split(':')
-            .map(PathBuf::from)
-            .collect();
-
-        for path in &paths {
-            let program_path = path.join(name);
-            if program_path.exists() {
-                return Ok(name.to_string());
-            }
-        }
-
-        Err(format!("Program ({}) was not found in the PATH.", name))
-    }
-
     #[rustfmt::skip]
     pub fn print_help_message() {
         println!("Usage: bookmarks [OPTIONS]\n");
         println!(
-            "This program searches and edits a list of websites from a text file with this format:"
+            "This program can search and modify a formatted plain text list of websites:"
         );
-        println!("!!--------|category|-------!!");
-        println!("Title # URL\n");
+        println!("Title @|@ Category @|@ URL\n");
         println!("Options:");
-        println!("  -m, --menu            Menu program to use.");
-        println!("                        Supported programs are '{}', {}', and '{}'.", 
-        SUPPORTED_MENU_PROGRAMS[0], SUPPORTED_MENU_PROGRAMS[1], SUPPORTED_MENU_PROGRAMS[2]);
-        println!("                        Default: ({})", DEFAULT_MENU_PROGRAM);
-        println!("  -b, --browser         Browser to use.");
-        println!("                        Default: ({})", DEFAULT_BROWSER);
-        println!("  -p, --path            Path to the bookmark file.");
-        println!("                        Default: ($HOME/{})", DEFAULT_BOOKMARK_FILE_PATH);
-        println!("  -r, --rows            Number of rows to show in the menu.");
-        println!("                        Default: ({})", DEFAULT_MENU_ROWS);
-        println!("  -h, --help            Show this help message and exit.\n");
+        println!("  {}, {:19}Menu program to use.", MENU_ARG_SHORT, MENU_ARG_LONG);
+        println!("{:25}Supported programs are '{}', {}', {}, and '{}'.", "", SUPPORTED_MENU_PROGRAMS[0], SUPPORTED_MENU_PROGRAMS[1], SUPPORTED_MENU_PROGRAMS[2], SUPPORTED_MENU_PROGRAMS[3]);
+        println!("{:25}Default: ({})", "", DEFAULT_MENU_PROGRAM);
+        println!("  {}, {:19}Browser command URLs will be passed to.", BROWSER_ARG_SHORT, BROWSER_ARG_LONG);
+        println!("{:25}Default: ({})", "",DEFAULT_BROWSER);
+        println!("  {}, {:19}Path to the bookmark file.", PATH_ARG_SHORT, PATH_ARG_LONG);
+        println!("{:25}Default: ($HOME/{})", "", DEFAULT_BOOKMARK_FILE_PATH);
+        println!("  {}, {:19}Number of rows to show in the menu.", ROWS_ARG_SHORT, ROWS_ARG_LONG);
+        println!("{:25}Default: ({})", "",DEFAULT_MENU_ROWS);
+        println!("  {}, {:19}Show this help message and exit.\n", HELP_ARG_SHORT, HELP_ARG_LONG);
         println!("Environment Variables:");
-        println!("BM_DEFAULT_OPTS         Default options");
-        println!("                        (e.g. '--menu {} --rows {}')", DEFAULT_MENU_PROGRAM, DEFAULT_MENU_ROWS);
-        println!("Please note that the program will check if the specified menu program and browser are found in the PATH. If not, it will fall back to the defaults.");
+        println!("{:25}Default options", ENV_VARIABLE);
+        println!("{:25}(e.g. '--menu {} --rows {}')", "", DEFAULT_MENU_PROGRAM, DEFAULT_MENU_ROWS);
     }
 
     fn unrecognized_arg_message(arg: &str) -> String {
-        format!("Error: Unrecognized argument '{}'.\nUse '-h, --help' for more information about available options.", arg)
+        format!("Error: Unrecognized argument '{}'. Use '-h, --help' for more information about available options.", arg)
     }
 }
