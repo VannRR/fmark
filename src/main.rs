@@ -9,18 +9,20 @@ use menu::*;
 use std::error::Error;
 use std::process::Command;
 
-const OPTIONS_NEW: &str = "new";
 const OPTIONS_GOTO: &str = "goto";
+const OPTIONS_NEW: &str = "create";
 const OPTIONS_MODIFY: &str = "modify";
 const OPTIONS_REMOVE: &str = "remove";
-const OPTIONS: &str = "new\ngoto\nmodify\nremove";
+const OPTIONS: &str = "goto\ncreate\nmodify\nremove";
 
 const TITLE: &str = "title";
 const URL: &str = "url";
 const CATEGORY: &str = "category";
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("TODO, add a readme, add tests, and upload to github.");
+    println!(
+        "TODO, add a readme, add tests, fix modify for when changed url, and upload to github."
+    );
 
     let arguments = Arguments::new()?;
 
@@ -36,18 +38,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(), String> {
-    let file_line = menu.choose(bookmarks_data.generate_plain_text(), "bookmarks")?;
+    let file_line = menu.choose(bookmarks_data.plain_text(), "", "bookmarks")?;
     if file_line.is_empty() {
         return Ok(());
     }
 
     if let Some(bookmark) = Data::bookmark_from_line(&file_line) {
-        let option = menu.choose(OPTIONS, "options")?;
+        let option = menu.choose(OPTIONS, "", "options")?;
         if option.is_empty() {
+            show_list(menu, bookmarks_data, browser)?;
             return Ok(());
         }
         match option.as_str() {
-            OPTIONS_NEW => new(menu, bookmarks_data, browser)?,
+            OPTIONS_NEW => create(menu, bookmarks_data, browser)?,
             OPTIONS_GOTO => goto(browser, &bookmark.url())?,
             OPTIONS_MODIFY => modify(menu, bookmarks_data, &bookmark, browser)?,
             OPTIONS_REMOVE => remove(menu, bookmarks_data, &bookmark, browser)?,
@@ -67,21 +70,14 @@ fn goto(browser: &str, url: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn new(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(), String> {
-    let answer = menu.input("n", "Add new bookmark? (y/n)")?;
-    if answer.to_lowercase() != "y" {
-        show_list(menu, bookmarks_data, browser)?;
-        return Ok(());
-    }
-
+fn create(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(), String> {
     let title = menu.input("", TITLE)?;
     if title.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
 
-    let categories = bookmarks_data.categories().join("\n");
-    let category = menu.choose(&categories, CATEGORY)?;
+    let category = menu.choose(&bookmarks_data.categories_plain_text(), "", CATEGORY)?;
     if category.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
@@ -93,7 +89,7 @@ fn new(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(), Strin
         return Ok(());
     }
 
-    bookmarks_data.set_bookmark(category, title, url);
+    bookmarks_data.set_bookmark(&category, &title, &url, None);
 
     show_list(menu, bookmarks_data, browser)
 }
@@ -110,21 +106,21 @@ fn modify(
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
-
-    let mut url = bookmark.url();
+    let old_url = bookmark.url();
+    let mut url = old_url.clone();
     url = menu.input(&url, URL)?;
     if url.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
-    let categories = bookmarks_data.categories().join("\n");
-    let category = menu.choose(&categories, CATEGORY)?;
+    let mut category = bookmark.category();
+    category = menu.choose(&bookmarks_data.categories_plain_text(), &category, CATEGORY)?;
     if category.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
 
-    bookmarks_data.set_bookmark(category, title, url);
+    bookmarks_data.set_bookmark(&category, &title, &url, Some(&old_url));
 
     show_list(menu, bookmarks_data, browser)
 }

@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-use crate::{Bookmark, Data};
+use crate::Bookmark;
 
 const SUPPORTED_MENU_PROGRAMS: [&str; 4] = ["bemenu", "dmenu", "rofi", "fzf"];
 const ENV_VARIABLE: &str = "BM_DEFAULT_OPTS";

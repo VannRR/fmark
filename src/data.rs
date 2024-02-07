@@ -1,10 +1,12 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+const FIELD_SEPARATOR_COUNT: usize = 2;
 const FIELD_SEPARATOR: &str = "@|@";
-const TITLE_PADDED_LENGTH: usize = 25;
-const CATEGORY_PADDED_LENGTH: usize = 15;
+const TITLE_PADDED_LENGTH: usize = 24;
+const CATEGORY_PADDED_LENGTH: usize = 18;
 const CATEGORY_SEPARATOR: &str = "-";
 
 #[derive(Clone, PartialEq)]
@@ -52,28 +54,12 @@ impl Bookmark {
     }
 }
 
-struct InvalidLine {
-    line: String,
-    line_number: usize,
-}
-
-impl InvalidLine {
-    pub fn new(line: String, line_number: usize) -> Self {
-        Self { line, line_number }
-    }
-
-    pub fn formatted(&self) -> String {
-        let label_one = "original line number";
-        let label_two = "invalid line";
-        if self.line.contains(label_one) || self.line.contains(label_two) {
-            self.line.clone()
-        } else {
-            format!(
-                "{}: {}, {}: {}\n",
-                label_one, self.line_number, label_two, self.line
-            )
-        }
-    }
+fn separator_line() -> String {
+    format!(
+        "{}\n",
+        CATEGORY_SEPARATOR
+            .repeat(TITLE_PADDED_LENGTH + CATEGORY_PADDED_LENGTH + (FIELD_SEPARATOR.len() * 2))
+    )
 }
 
 pub struct Data {
@@ -83,10 +69,11 @@ pub struct Data {
     current_version: usize,
     categories: Vec<String>,
     bookmarks: HashMap<String, Bookmark>,
-    invalid_lines: Vec<InvalidLine>,
+    invalid_lines: HashMap<usize, String>,
     read: bool,
     edited: bool,
     initialized: bool,
+    categories_sorted: bool,
 }
 
 impl Data {
@@ -98,10 +85,11 @@ impl Data {
             current_version: 0,
             categories: Vec::new(),
             bookmarks: HashMap::new(),
-            invalid_lines: Vec::new(),
+            invalid_lines: HashMap::new(),
             read: false,
             edited: false,
             initialized: false,
+            categories_sorted: false,
         }
     }
 
@@ -122,7 +110,7 @@ impl Data {
         if !self.read || !self.edited {
             return Ok(());
         }
-        self.generate_plain_text();
+        self.plain_text();
         fs::write(&self.file_path, &self.plain_text).map_err(|error| {
             format!(
                 "Failed to write bookmark file {}: {}",
@@ -132,20 +120,23 @@ impl Data {
         })
     }
 
-    pub fn categories(&self) -> &Vec<String> {
-        &self.categories
-    }
-
-    pub fn set_bookmark(&mut self, category: String, title: String, url: String) {
+    pub fn set_bookmark(&mut self, category: &str, title: &str, url: &str, old_url: Option<&str>) {
         let title = title.trim().to_string();
         let url = url.trim().to_string();
         let category = category.trim().to_string();
         if !self.categories.contains(&category) {
             self.categories.push(category.clone());
+            self.categories_sorted = false;
         }
-        let old_bookmark = self.bookmarks.get(&url);
-        let new_bookmark = Bookmark::new(title, category, url.clone());
+        let old_bookmark = match old_url {
+            Some(old_url) => self.bookmarks.get(old_url),
+            None => None,
+        };
+        let new_bookmark = Bookmark::new(title, category.clone(), url.clone());
         if old_bookmark != Some(&new_bookmark) {
+            if let Some(old_bookmark) = old_bookmark {
+                self.bookmarks.remove(&old_bookmark.url());
+            }
             self.bookmarks.insert(url, new_bookmark);
             self.current_version += 1;
             self.edited = true;
@@ -163,39 +154,38 @@ impl Data {
         }
     }
 
-    pub fn generate_plain_text(&mut self) -> &str {
+    pub fn plain_text(&mut self) -> &str {
         if self.previous_version == self.current_version && self.initialized {
             return &self.plain_text;
         };
 
         self.plain_text.clear();
 
-        let mut sorted_categories = self.categories.clone();
-        sorted_categories.sort_by(Data::alphabetic_sort);
+        let mut bookmarks_vec: Vec<_> = self.bookmarks.values().collect();
 
-        for category in sorted_categories {
-            let mut bookmarks: Vec<_> = self
-                .bookmarks
-                .values()
-                .filter(|b| b.category() == category)
-                .collect();
-            bookmarks.sort_by(|a, b| Data::alphabetic_sort(&a.title(), &b.title()));
-
-            for bookmark in bookmarks {
-                self.plain_text.push_str(&bookmark.formatted_line());
+        bookmarks_vec.sort_by(|a, b| {
+            let cat_ordering = Self::alphabetic_sort(&a.category(), &b.category());
+            if cat_ordering == Ordering::Equal {
+                Self::alphabetic_sort(&a.title(), &b.title())
+            } else {
+                cat_ordering
             }
+        });
 
-            let separator = format!(
-                "{}\n",
-                CATEGORY_SEPARATOR.repeat(
-                    TITLE_PADDED_LENGTH + CATEGORY_PADDED_LENGTH + (FIELD_SEPARATOR.len() * 2)
-                )
-            );
-            self.plain_text.push_str(&separator);
-        }
-
-        for invalid_line in &self.invalid_lines {
-            self.plain_text.push_str(&invalid_line.formatted());
+        let mut current_category = None;
+        let combined_len = bookmarks_vec.len() + self.invalid_lines.len();
+        for i in 0..combined_len {
+            if let Some(line) = self.invalid_lines.get(&i) {
+                self.plain_text.push_str(line);
+            } else if i < bookmarks_vec.len() {
+                if let Some(cat) = current_category {
+                    if cat != bookmarks_vec[i].category() {
+                        self.plain_text.push_str(&separator_line());
+                    }
+                }
+                current_category = Some(bookmarks_vec[i].category());
+                self.plain_text.push_str(&bookmarks_vec[i].formatted_line());
+            }
         }
 
         self.previous_version = self.current_version;
@@ -204,12 +194,23 @@ impl Data {
         &self.plain_text
     }
 
-    pub fn bookmark_from_line(bookmark_line: &str) -> Option<Bookmark> {
-        if !bookmark_line.contains(FIELD_SEPARATOR) {
+    pub fn categories_plain_text(&mut self) -> String {
+        if !self.categories_sorted {
+            self.categories.sort_by(|a, b| Self::alphabetic_sort(a, b));
+            self.categories_sorted = true;
+        }
+        self.categories
+            .iter()
+            .map(|category| format!("{}\n", category))
+            .collect::<String>()
+    }
+
+    pub fn bookmark_from_line(line: &str) -> Option<Bookmark> {
+        if line.matches(FIELD_SEPARATOR).count() != FIELD_SEPARATOR_COUNT {
             return None;
         }
 
-        let bookmark = bookmark_line.split(FIELD_SEPARATOR).collect::<Vec<&str>>();
+        let bookmark = line.split(FIELD_SEPARATOR).collect::<Vec<&str>>();
 
         let title = bookmark[0].trim().to_string();
         let category = bookmark[1].trim().to_string();
@@ -226,7 +227,7 @@ impl Data {
                 continue;
             }
 
-            if line.contains(FIELD_SEPARATOR) {
+            if line.matches(FIELD_SEPARATOR).count() == FIELD_SEPARATOR_COUNT {
                 if let Some(bookmark) = Data::bookmark_from_line(line) {
                     if !self.categories.contains(&bookmark.category()) {
                         self.categories.push(bookmark.category().clone());
@@ -234,14 +235,14 @@ impl Data {
                     self.bookmarks.insert(bookmark.url.clone(), bookmark);
                 }
             } else {
-                self.invalid_lines
-                    .push(InvalidLine::new(line.to_string(), i + 1));
+                self.invalid_lines.insert(i, format!("{}\n", line));
             }
         }
+
         Ok(())
     }
 
-    fn alphabetic_sort(a: &String, b: &String) -> std::cmp::Ordering {
+    fn alphabetic_sort(a: &str, b: &str) -> Ordering {
         let a = a
             .chars()
             .filter(|c| c.is_ascii_alphabetic() || c.is_ascii_digit())

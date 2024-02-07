@@ -41,26 +41,28 @@ impl Menu {
         }
     }
 
-    pub fn choose(&self, menu_items: &str, prompt: &str) -> Result<String, String> {
+    pub fn choose(&self, menu_items: &str, query: &str, prompt: &str) -> Result<String, String> {
         match self {
             Self::Bemenu { rows } => self.run_command(
                 "bemenu",
-                &["-i", "-l", rows, "-p", prompt],
+                &["-i", "-l", rows, "-F", query, "-p", prompt],
                 Some(menu_items),
             ),
-            Self::Dmenu { rows } => {
-                self.run_command("dmenu", &["-i", "-l", rows, "-p", prompt], Some(menu_items))
-            }
+            Self::Dmenu { rows } => self.run_command(
+                "dmenu",
+                &["-i", "-l", rows, "-F", query, "-p", prompt],
+                Some(menu_items),
+            ),
             Self::Rofi { rows } => self.run_command(
                 "rofi",
-                &["-dmenu", "-i", "-l", rows, "-p", prompt],
+                &["-dmenu", "-i", "-l", rows, "-F", query, "-p", prompt],
                 Some(menu_items),
             ),
             Self::Fzf { rows: _ } => {
                 let prompt = format!("{}> ", prompt);
                 self.run_command(
                     "fzf",
-                    &["--print-query", "--prompt", &prompt],
+                    &["-q", query, "--print-query", "--prompt", &prompt],
                     Some(menu_items),
                 )
             }
