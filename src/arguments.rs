@@ -213,3 +213,68 @@ impl Arguments {
         format!("Error: Unrecognized argument '{}'. Use '-h, --help' for more information about available options.", arg)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_arguments_get_menu_program() {
+        // Test with a supported menu program
+        let menu_program = Arguments::get_menu_program(Some("bemenu".to_string()));
+        assert_eq!(menu_program.unwrap(), "bemenu");
+
+        // Test with an unsupported menu program
+        let menu_program = Arguments::get_menu_program(Some("unsupported".to_string()));
+        assert!(menu_program.is_err());
+
+        // Test with None, should return the default menu program
+        let menu_program = Arguments::get_menu_program(None);
+        assert_eq!(menu_program.unwrap(), DEFAULT_MENU_PROGRAM);
+    }
+
+    #[test]
+    fn test_arguments_get_browser() {
+        // Test with a browser
+        let browser = Arguments::get_browser(Some("firefox".to_string()));
+        assert_eq!(browser, "firefox");
+
+        // Test with None, should return the default browser
+        let browser = Arguments::get_browser(None);
+        assert_eq!(browser, DEFAULT_BROWSER);
+    }
+
+    #[test]
+    fn test_arguments_get_bookmark_file_path() {
+        // Test with a valid path
+        let path = Arguments::get_bookmark_file_path(Some("/home".to_string()));
+        assert!(path.is_ok());
+
+        // Test with an invalid path
+        let path = Arguments::get_bookmark_file_path(Some("/invalid/path".to_string()));
+        assert!(path.is_err());
+
+        // Test with None, should return the default bookmark file path
+        let path = Arguments::get_bookmark_file_path(None);
+        assert_eq!(
+            path.unwrap(),
+            PathBuf::from(env::var("HOME").unwrap()).join(DEFAULT_BOOKMARK_FILE_PATH)
+        );
+    }
+
+    #[test]
+    fn test_arguments_get_menu_rows() {
+        // Test with a valid number of rows
+        let rows = Arguments::get_menu_rows(Some("10".to_string()));
+        assert_eq!(rows, "10");
+
+        // Test with an invalid number of rows
+        let rows = Arguments::get_menu_rows(Some("invalid".to_string()));
+        assert_eq!(rows, DEFAULT_MENU_ROWS);
+
+        // Test with None, should return the default number of menu rows
+        let rows = Arguments::get_menu_rows(None);
+        assert_eq!(rows, DEFAULT_MENU_ROWS);
+    }
+}

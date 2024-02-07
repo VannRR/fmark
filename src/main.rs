@@ -20,7 +20,7 @@ const URL: &str = "url";
 const CATEGORY: &str = "category";
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("TODO, add a readme, add tests, and upload to github.");
+    println!("TODO, add a readme, and upload to github.");
 
     let arguments = Arguments::new()?;
 
@@ -106,6 +106,7 @@ fn modify(
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
+    
     let old_url = bookmark.url();
     let mut url = old_url.clone();
     url = menu.choose(Some(&url), None, URL)?;
@@ -113,6 +114,7 @@ fn modify(
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
+    
     let categories = Some(bookmarks_data.categories_plain_text());
     let mut category = bookmark.category();
     category = menu.choose(categories, Some(&category), CATEGORY)?;

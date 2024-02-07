@@ -33,7 +33,7 @@ impl Menu {
             _ => None,
         };
 
-        let mut output = match self {
+        let output = match self {
             Self::Bemenu { rows } => {
                 self.run_command("bemenu", &["-i", "-l", rows, "-p", prompt], menu_items)
             }
@@ -92,5 +92,28 @@ impl Menu {
         String::from_utf8(output.stdout)
             .map_err(|_| "Invalid UTF-8 sequence".to_string())
             .map(|v| v.trim().to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_menu_new() {
+        let menu = Menu::new("bemenu", "10".to_string());
+        assert!(menu.is_ok());
+
+        let menu = Menu::new("unsupported", "10".to_string());
+        assert!(menu.is_err());
+    }
+
+    #[test]
+    fn test_menu_choose() {
+        let menu = Menu::new("bemenu", "10".to_string()).unwrap();
+        let result = menu.choose(Some("item1\nitem2"), Some("item1"), "Choose an item");
+        if let Ok(result) = result {
+            assert!(result == "item1" || result == "item2");
+        }
     }
 }

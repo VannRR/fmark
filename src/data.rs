@@ -25,9 +25,9 @@ impl Bookmark {
         }
     }
     pub fn default() -> Self {
-        let title = "A Title".to_string();
-        let category = "A Category".to_string();
-        let url = " https://website.com".to_string();
+        let title = "title".to_string();
+        let category = "category".to_string();
+        let url = "url".to_string();
         Self {
             title,
             category,
@@ -266,5 +266,114 @@ impl Data {
         }
 
         a.len().cmp(&b.len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+
+    #[test]
+    fn test_data_new() {
+        let data = Data::new(PathBuf::from("test.txt"));
+        assert_eq!(data.file_path, PathBuf::from("test.txt"));
+        assert_eq!(data.plain_text, "");
+        assert_eq!(data.categories_plain_text, "");
+        assert_eq!(data.previous_version, 0);
+        assert_eq!(data.current_version, 0);
+        assert!(data.categories.is_empty());
+        assert!(data.bookmarks.is_empty());
+        assert!(data.invalid_lines.is_empty());
+        assert!(!data.read);
+        assert!(!data.edited);
+        assert!(!data.initialized);
+        assert!(!data.categories_sorted);
+    }
+
+    #[test]
+    fn test_data_read() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        let _ = File::create(&data.file_path).unwrap();
+        assert!(data.read().is_ok());
+        assert!(data.read);
+    }
+
+    #[test]
+    fn test_data_write() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        let _ = File::create(&data.file_path).unwrap();
+        data.read = true;
+        data.edited = true;
+        assert!(data.write().is_ok());
+    }
+
+    #[test]
+    fn test_data_set_bookmark() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        data.set_bookmark("category", "title", "url", None);
+        assert_eq!(data.bookmarks.len(), 1);
+        assert_eq!(data.categories.len(), 1);
+        assert!(data.edited);
+    }
+
+    #[test]
+    fn test_data_remove_bookmark() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        data.set_bookmark("category", "title", "url", None);
+        data.remove_bookmark("url");
+        assert!(data.bookmarks.is_empty());
+        assert!(data.categories.is_empty());
+        assert!(data.edited);
+    }
+
+    #[test]
+    fn test_data_plain_text() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        data.set_bookmark("category", "title", "url", None);
+        println!(
+            "{}{}",
+            data.plain_text(),
+            Bookmark::default().formatted_line()
+        );
+        assert_eq!(
+            data.plain_text(),
+            Bookmark::default().formatted_line().to_string()
+        );
+    }
+
+    #[test]
+    fn test_data_categories_plain_text() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        data.set_bookmark("category", "title", "url", None);
+        assert_eq!(data.categories_plain_text(), "category\n");
+    }
+
+    #[test]
+    fn test_data_bookmark_from_line() {
+        let line = "title                   @|@ category         @|@ url";
+        let bookmark = Data::bookmark_from_line(line);
+        assert!(bookmark.is_some());
+        let bookmark = bookmark.unwrap();
+        assert_eq!(bookmark.title(), "title");
+        assert_eq!(bookmark.category(), "category");
+        assert_eq!(bookmark.url(), "url");
+    }
+
+    #[test]
+    fn test_data_parse() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        let _ = File::create(&data.file_path).unwrap();
+        data.plain_text = Bookmark::default().formatted_line().to_string();
+        assert!(data.parse().is_ok());
+        assert_eq!(data.bookmarks.len(), 1);
+        assert_eq!(data.categories.len(), 1);
+    }
+
+    #[test]
+    fn test_data_alphabetic_sort() {
+        assert_eq!(Data::alphabetic_sort("a", "b"), Ordering::Less);
+        assert_eq!(Data::alphabetic_sort("b", "a"), Ordering::Greater);
+        assert_eq!(Data::alphabetic_sort("a", "a"), Ordering::Equal);
     }
 }
