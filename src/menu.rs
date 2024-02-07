@@ -19,57 +19,58 @@ impl Menu {
         }
     }
 
-    pub fn input(&self, query: &str, prompt: &str) -> Result<String, String> {
-        match self {
-            Self::Bemenu { rows: _ } => {
-                self.run_command("bemenu", &["-F", query, "-p", prompt], None)
+    pub fn choose(
+        &self,
+        menu_items: Option<&str>,
+        default: Option<&str>,
+        prompt: &str,
+    ) -> Result<String, String> {
+        let menu_items = match (menu_items, default) {
+            (Some(items), Some(default)) => {
+                Some(items.replace(default, &format!("{} <-- current", default)))
             }
-            Self::Dmenu { rows: _ } => {
-                self.run_command("dmenu", &["-F", query, "-p", prompt], None)
-            }
-            Self::Rofi { rows: _ } => {
-                self.run_command("rofi", &["-dmenu", "-F", query, "-p", prompt], None)
-            }
-            Self::Fzf { rows: _ } => {
-                let prompt = format!("{}> ", prompt);
-                self.run_command(
-                    "fzf",
-                    &["-q", query, "--print-query", "--prompt", &prompt],
-                    Some(""),
-                )
-            }
-        }
-    }
+            (Some(items), None) => Some(items.to_string()),
+            _ => None,
+        };
 
-    pub fn choose(&self, menu_items: &str, query: &str, prompt: &str) -> Result<String, String> {
-        match self {
-            Self::Bemenu { rows } => self.run_command(
-                "bemenu",
-                &["-i", "-l", rows, "-F", query, "-p", prompt],
-                Some(menu_items),
-            ),
-            Self::Dmenu { rows } => self.run_command(
-                "dmenu",
-                &["-i", "-l", rows, "-F", query, "-p", prompt],
-                Some(menu_items),
-            ),
+        let mut output = match self {
+            Self::Bemenu { rows } => {
+                self.run_command("bemenu", &["-i", "-l", rows, "-p", prompt], menu_items)
+            }
+            Self::Dmenu { rows } => {
+                self.run_command("dmenu", &["-i", "-l", rows, "-p", prompt], menu_items)
+            }
             Self::Rofi { rows } => self.run_command(
                 "rofi",
-                &["-dmenu", "-i", "-l", rows, "-F", query, "-p", prompt],
-                Some(menu_items),
+                &["-dmenu", "-i", "-l", rows, "-p", prompt],
+                menu_items,
             ),
             Self::Fzf { rows: _ } => {
                 let prompt = format!("{}> ", prompt);
+                let menu_items = menu_items.unwrap_or("".to_string());
                 self.run_command(
                     "fzf",
-                    &["-q", query, "--print-query", "--prompt", &prompt],
+                    &["-i", "--print-query", "--prompt", &prompt],
                     Some(menu_items),
                 )
             }
+        };
+        match (output, default) {
+            (Ok(mut output), Some(default)) => {
+                output = output.replace(&format!("{} <-- current", default), default);
+                Ok(output)
+            }
+            (Ok(output), None) => Ok(output),
+            (Err(e), _) => Err(e),
         }
     }
 
-    fn run_command(&self, cmd: &str, args: &[&str], input: Option<&str>) -> Result<String, String> {
+    fn run_command(
+        &self,
+        cmd: &str,
+        args: &[&str],
+        input: Option<String>,
+    ) -> Result<String, String> {
         let mut child = Command::new(cmd)
             .args(args)
             .stdin(Stdio::piped())

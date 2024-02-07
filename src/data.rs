@@ -65,6 +65,7 @@ fn separator_line() -> String {
 pub struct Data {
     file_path: PathBuf,
     plain_text: String,
+    categories_plain_text: String,
     previous_version: usize,
     current_version: usize,
     categories: Vec<String>,
@@ -81,6 +82,7 @@ impl Data {
         Self {
             file_path,
             plain_text: String::new(),
+            categories_plain_text: String::new(),
             previous_version: 0,
             current_version: 0,
             categories: Vec::new(),
@@ -194,15 +196,17 @@ impl Data {
         &self.plain_text
     }
 
-    pub fn categories_plain_text(&mut self) -> String {
+    pub fn categories_plain_text(&mut self) -> &str {
         if !self.categories_sorted {
             self.categories.sort_by(|a, b| Self::alphabetic_sort(a, b));
             self.categories_sorted = true;
+            self.categories_plain_text = self
+                .categories
+                .iter()
+                .map(|category| format!("{}\n", category))
+                .collect::<String>();
         }
-        self.categories
-            .iter()
-            .map(|category| format!("{}\n", category))
-            .collect::<String>()
+        &self.categories_plain_text
     }
 
     pub fn bookmark_from_line(line: &str) -> Option<Bookmark> {
