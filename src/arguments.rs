@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-use crate::Bookmark;
+use crate::bookmark::Bookmark;
 
 const SUPPORTED_MENU_PROGRAMS: [&str; 4] = ["bemenu", "dmenu", "rofi", "fzf"];
 const ENV_VARIABLE: &str = "BM_DEFAULT_OPTS";
@@ -150,7 +150,7 @@ impl Arguments {
                     let default_bookmark = Bookmark::default();
                     let title_padding = default_bookmark.title().len();
                     let category_padding = default_bookmark.category().len();
-                    let template = default_bookmark.formatted_line(title_padding, category_padding);
+                    let template = default_bookmark.to_line(title_padding, category_padding);
                     match std::fs::write(&default_path, template) {
                         Ok(_) => Ok(default_path),
                         Err(error) => Err(format!("Failed to create bookmark file: {}", error)),
@@ -180,7 +180,7 @@ impl Arguments {
             "This program can search and modify a formatted plain text list of websites.\n"
         );
         println!("format:");
-        println!("  {}\n", Bookmark::default().formatted_line(0, 0));
+        println!("  {}\n", Bookmark::default().to_line(0, 0));
         println!("Options:");
         println!("  {}, {:19}Menu program to use.", MENU_ARG_SHORT, MENU_ARG_LONG);
         println!("{:25}Supported programs are '{}'.", "", SUPPORTED_MENU_PROGRAMS.join("', '"));

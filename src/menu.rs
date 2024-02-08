@@ -113,9 +113,9 @@ mod tests {
     #[test]
     fn test_menu_choose() {
         let menu = Menu::new("bemenu".to_string(), "10".to_string()).unwrap();
-        let result = menu.choose(Some("item1\nitem2"), Some("item1"), "Choose an item");
+        let result = menu.choose(Some("pass\nfail"), Some("item1"), "Choose an item");
         if let Ok(result) = result {
-            assert!(result == "item1" || result == "item2");
+            assert_eq!(result, "pass");
         }
     }
 }

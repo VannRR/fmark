@@ -1,12 +1,13 @@
 mod arguments;
+mod bookmark;
 mod data;
 mod menu;
-mod parser;
+mod parse_file;
 
 use arguments::Arguments;
+use bookmark::Bookmark;
 use data::*;
 use menu::*;
-use parser::*;
 
 use std::error::Error;
 use std::process::Command;
@@ -26,8 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let arguments = Arguments::new()?;
 
-    let mut bookmarks_data = Data::new(arguments.bookmark_file_path);
-    bookmarks_data.read()?;
+    let mut bookmarks_data = Data::new(arguments.bookmark_file_path)?;
 
     let menu = Menu::new(arguments.menu_program, arguments.menu_rows)?;
     show_list(menu, &mut bookmarks_data, arguments.browser)?;
@@ -44,7 +44,7 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(
         return Ok(());
     }
 
-    if let Some(bookmark) = parser::parse_line(&file_line) {
+    if let Some(bookmark) = Bookmark::from_line(&file_line) {
         let option = menu.choose(Some(OPTIONS), None, "options")?;
         if option.is_empty() {
             show_list(menu, bookmarks_data, browser)?;
