@@ -30,10 +30,10 @@ struct PendingArgs {
 }
 
 pub struct Arguments {
-    menu_program: String,
-    browser: String,
-    bookmark_file_path: PathBuf,
-    menu_rows: String,
+    pub menu_program: String,
+    pub browser: String,
+    pub bookmark_file_path: PathBuf,
+    pub menu_rows: String,
 }
 
 impl Arguments {
@@ -63,22 +63,6 @@ impl Arguments {
             bookmark_file_path,
             menu_rows,
         })
-    }
-
-    pub fn menu_program(&self) -> &str {
-        &self.menu_program
-    }
-
-    pub fn browser(&self) -> &str {
-        &self.browser
-    }
-
-    pub fn bookmark_file_path(&self) -> PathBuf {
-        self.bookmark_file_path.clone()
-    }
-
-    pub fn menu_rows(&self) -> String {
-        self.menu_rows.clone()
     }
 
     fn get_argument_values(

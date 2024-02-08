@@ -50,44 +50,43 @@ impl Bookmark {
     }
 
     pub fn formatted_line(&self, mut title_padding: usize, mut category_padding: usize) -> String {
-    let title_char_count = self.title().chars().count();
-    if title_padding >= TITLE_MAX_LENGTH - 1 {
-        title_padding = TITLE_MAX_LENGTH.saturating_sub(title_char_count) + 1
-    } else {
-        title_padding = title_padding.saturating_sub(title_char_count) + 1
+        let title_char_count = self.title().chars().count();
+        if title_padding >= TITLE_MAX_LENGTH - 1 {
+            title_padding = TITLE_MAX_LENGTH.saturating_sub(title_char_count) + 1
+        } else {
+            title_padding = title_padding.saturating_sub(title_char_count) + 1
+        }
+
+        let category_char_count = self.category().chars().count();
+        if category_padding >= CATEGORY_MAX_LENGTH - 1 {
+            category_padding = CATEGORY_MAX_LENGTH.saturating_sub(category_char_count) + 1
+        } else {
+            category_padding = category_padding.saturating_sub(category_char_count) + 1
+        }
+
+        let title: Cow<str> = if title_char_count > TITLE_MAX_LENGTH {
+            format!("{:.TITLE_MAX_LENGTH$}", self.title).into()
+        } else {
+            Cow::Borrowed(&self.title)
+        };
+
+        let category: Cow<str> = if category_char_count > CATEGORY_MAX_LENGTH {
+            format!("{:.CATEGORY_MAX_LENGTH$}", self.category).into()
+        } else {
+            Cow::Borrowed(&self.category)
+        };
+
+        let url: Cow<str> = if self.url.len() > URL_MAX_LENGTH {
+            format!("{:.URL_MAX_LENGTH$}", self.url).into()
+        } else {
+            Cow::Borrowed(&self.url)
+        };
+
+        format!(
+            "{{{}}}{{{}}}{:title_padding$}{{{}}}{{{}}}{:category_padding$}{{{}}}{{{}}}\n",
+            TITLE_MARKER, title, "", CATEGORY_MARKER, category, "", URL_MARKER, url
+        )
     }
-
-    let category_char_count = self.category().chars().count();
-    if category_padding >= CATEGORY_MAX_LENGTH - 1 {
-        category_padding = CATEGORY_MAX_LENGTH.saturating_sub(category_char_count) + 1
-    } else {
-        category_padding = category_padding.saturating_sub(category_char_count) + 1
-    }
-
-    let title: Cow<str> = if title_char_count > TITLE_MAX_LENGTH {
-        format!("{:.TITLE_MAX_LENGTH$}", self.title).into()
-    } else {
-        Cow::Borrowed(&self.title)
-    };
-
-    let category: Cow<str> = if category_char_count > CATEGORY_MAX_LENGTH {
-        format!("{:.CATEGORY_MAX_LENGTH$}", self.category).into()
-    } else {
-        Cow::Borrowed(&self.category)
-    };
-
-    let url: Cow<str> = if self.url.len() > URL_MAX_LENGTH {
-        format!("{:.URL_MAX_LENGTH$}", self.url).into()
-    } else {
-        Cow::Borrowed(&self.url)
-    };
-
-    format!(
-        "{{{}}}{{{}}}{:title_padding$}{{{}}}{{{}}}{:category_padding$}{{{}}}{{{}}}\n",
-        TITLE_MARKER, title, "", CATEGORY_MARKER, category, "", URL_MARKER, url
-    )
-}
-
 }
 
 pub struct ParsedFile {
@@ -99,7 +98,7 @@ pub struct ParsedFile {
     pub longest_category: usize,
 }
 
-pub fn parse_plain_text(file: &str) -> ParsedFile {
+pub fn parse_file(file: &str) -> ParsedFile {
     let mut bookmarks: HashMap<String, Bookmark> = HashMap::new();
     let mut invalid_lines: HashMap<usize, String> = HashMap::new();
     let mut previous_longest_title = 0;
@@ -127,7 +126,7 @@ pub fn parse_plain_text(file: &str) -> ParsedFile {
                 bookmarks.insert(bookmark.url().to_string(), bookmark);
             }
             None => {
-                invalid_lines.insert(i, line.to_string());
+                invalid_lines.insert(i, format!("{}\n", line));
             }
         }
     }
@@ -148,10 +147,10 @@ pub fn parse_line(line: &str) -> Option<Bookmark> {
     for c in line.chars() {
         if c == SEGMENT_START && !capture {
             capture = true;
-            segment = String::new();
+            segment.clear();
         } else if c == '\n' && capture {
             capture = false;
-            segment = String::new();
+            segment.clear();
         }
         if capture {
             segment.push(c);
@@ -214,7 +213,14 @@ mod tests {
             formatted_line,
             format!(
                 "{{{}}}{{{}}}{:10}{{{}}}{{{}}}{:15}{{{}}}{{{}}}\n",
-                TITLE_MARKER, "Rust Programming", "", CATEGORY_MARKER, "Programming", "", URL_MARKER, "https://www.rust-lang.org/"
+                TITLE_MARKER,
+                "Rust Programming",
+                "",
+                CATEGORY_MARKER,
+                "Programming",
+                "",
+                URL_MARKER,
+                "https://www.rust-lang.org/"
             )
         );
     }
@@ -225,7 +231,7 @@ mod tests {
         let title_padding = default_bookmark.title().chars().count();
         let category_padding = default_bookmark.category().chars().count();
         let file = default_bookmark.formatted_line(title_padding, category_padding);
-        let parsed = parse_plain_text(&file);
+        let parsed = parse_file(&file);
         assert_eq!(parsed.bookmarks.len(), 1);
         assert_eq!(parsed.invalid_lines.len(), 0);
         assert_eq!(parsed.longest_title, title_padding);

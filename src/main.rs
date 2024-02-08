@@ -26,18 +26,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let arguments = Arguments::new()?;
 
-    let mut bookmarks_data = Data::new(arguments.bookmark_file_path());
+    let mut bookmarks_data = Data::new(arguments.bookmark_file_path);
     bookmarks_data.read()?;
 
-    let menu = Menu::new(arguments.menu_program(), arguments.menu_rows())?;
-    show_list(menu, &mut bookmarks_data, arguments.browser())?;
+    let menu = Menu::new(arguments.menu_program, arguments.menu_rows)?;
+    show_list(menu, &mut bookmarks_data, arguments.browser)?;
 
     bookmarks_data.write()?;
 
     Ok(())
 }
 
-fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(), String> {
+fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), String> {
     let bookmarks_list = Some(bookmarks_data.plain_text());
     let file_line = menu.choose(bookmarks_list, None, "bookmarks")?;
     if file_line.is_empty() {
@@ -51,8 +51,8 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(),
             return Ok(());
         }
         match option.as_str() {
-            OPTIONS_NEW => create(menu, bookmarks_data, browser)?,
             OPTIONS_GOTO => goto(browser, bookmark.url())?,
+            OPTIONS_NEW => create(menu, bookmarks_data, browser)?,
             OPTIONS_MODIFY => modify(menu, bookmarks_data, &bookmark, browser)?,
             OPTIONS_REMOVE => remove(menu, bookmarks_data, &bookmark, browser)?,
             _ => (),
@@ -62,7 +62,7 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(),
     Ok(())
 }
 
-fn goto(browser: &str, url: &str) -> Result<(), String> {
+fn goto(browser: String, url: &str) -> Result<(), String> {
     Command::new(browser)
         .arg(url)
         .spawn()
@@ -71,7 +71,7 @@ fn goto(browser: &str, url: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn create(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(), String> {
+fn create(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), String> {
     let title = menu.choose(None, None, TITLE)?;
     if title.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
@@ -91,7 +91,7 @@ fn create(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(), St
         return Ok(());
     }
 
-    bookmarks_data.set_bookmark(&category, &title, &url, None);
+    bookmarks_data.set_bookmark(category, title, url, None);
 
     show_list(menu, bookmarks_data, browser)
 }
@@ -100,7 +100,7 @@ fn modify(
     menu: Menu,
     bookmarks_data: &mut Data,
     bookmark: &Bookmark,
-    browser: &str,
+    browser: String,
 ) -> Result<(), String> {
     let mut title = bookmark.title().to_string();
     title = menu.choose(Some(&title), None, TITLE)?;
@@ -125,7 +125,7 @@ fn modify(
         return Ok(());
     }
 
-    bookmarks_data.set_bookmark(&category, &title, &url, Some(&old_url));
+    bookmarks_data.set_bookmark(category, title, url, Some(&old_url));
 
     show_list(menu, bookmarks_data, browser)
 }
@@ -134,7 +134,7 @@ fn remove(
     menu: Menu,
     bookmarks_data: &mut Data,
     bookmark: &Bookmark,
-    browser: &str,
+    browser: String,
 ) -> Result<(), String> {
     let prompt = format!("Remove {}? (yes/no)", bookmark.title().trim());
     let answer = menu.choose(None, None, &prompt)?;

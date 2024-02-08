@@ -54,7 +54,7 @@ impl Data {
                 error
             )
         })?;
-        let parsed_file = parse_plain_text(&self.plain_text);
+        let parsed_file = parse_file(&self.plain_text);
         self.bookmarks = parsed_file.bookmarks;
         self.invalid_lines = parsed_file.invalid_lines;
         self.previous_longest_title = parsed_file.previous_longest_title;
@@ -80,22 +80,25 @@ impl Data {
         })
     }
 
-    pub fn set_bookmark(&mut self, category: &str, title: &str, url: &str, old_url: Option<&str>) {
-        let title = title.trim().to_string();
-        let url = url.trim().to_string();
-        let category = category.trim().to_string();
+    pub fn set_bookmark(
+        &mut self,
+        category: String,
+        title: String,
+        url: String,
+        old_url: Option<&str>,
+    ) {
         if !self.categories.contains(&category) {
             self.categories.push(category.clone());
             self.categories_sorted = false;
         }
         let old_bookmark = match old_url {
-            Some(old_url) => self.bookmarks.get(old_url).cloned(),
+            Some(old_url) => self.bookmarks.get(old_url),
             None => None,
         };
         let new_bookmark = Bookmark::new(title.clone(), category.clone(), url.clone());
-        if old_bookmark != Some(new_bookmark.clone()) {
-            if let Some(old_bookmark) = old_bookmark {
-                self.bookmarks.remove(old_bookmark.url());
+        if old_bookmark != Some(&new_bookmark) {
+            if let Some(old_url) = old_url {
+                self.bookmarks.remove(old_url);
             }
             self.update_longest_title(title.chars().count());
             self.update_longest_category(category.chars().count());
@@ -250,7 +253,12 @@ mod tests {
     #[test]
     fn test_data_set_bookmark() {
         let mut data = Data::new(PathBuf::from("test.txt"));
-        data.set_bookmark("category", "title", "url", None);
+        data.set_bookmark(
+            "category".to_string(),
+            "title".to_string(),
+            "url".to_string(),
+            None,
+        );
         assert_eq!(data.bookmarks.len(), 1);
         assert_eq!(data.categories.len(), 1);
         assert!(data.edited);
@@ -259,7 +267,12 @@ mod tests {
     #[test]
     fn test_data_remove_bookmark() {
         let mut data = Data::new(PathBuf::from("test.txt"));
-        data.set_bookmark("category", "title", "url", None);
+        data.set_bookmark(
+            "category".to_string(),
+            "title".to_string(),
+            "url".to_string(),
+            None,
+        );
         data.remove_bookmark("url");
         assert!(data.bookmarks.is_empty());
         assert!(data.categories.is_empty());
@@ -272,7 +285,12 @@ mod tests {
         let bookmark = Bookmark::default();
         let title_padding = bookmark.title().chars().count();
         let category_padding = bookmark.category().chars().count();
-        data.set_bookmark(bookmark.category(), bookmark.title(), bookmark.url(), None);
+        data.set_bookmark(
+            bookmark.category().to_string(),
+            bookmark.title().to_string(),
+            bookmark.url().to_string(),
+            None,
+        );
         assert_eq!(
             data.plain_text(),
             bookmark
@@ -284,7 +302,12 @@ mod tests {
     #[test]
     fn test_data_categories_plain_text() {
         let mut data = Data::new(PathBuf::from("test.txt"));
-        data.set_bookmark("category", "title", "url", None);
+        data.set_bookmark(
+            "category".to_string(),
+            "title".to_string(),
+            "url".to_string(),
+            None,
+        );
         assert_eq!(data.categories_plain_text(), "category\n");
     }
 

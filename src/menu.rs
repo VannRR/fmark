@@ -11,8 +11,8 @@ pub enum Menu {
 }
 
 impl Menu {
-    pub fn new(menu_program: &str, rows: String) -> Result<Self, String> {
-        match menu_program {
+    pub fn new(menu_program: String, rows: String) -> Result<Self, String> {
+        match menu_program.as_str() {
             "bemenu" => Ok(Self::Bemenu { rows }),
             "dmenu" => Ok(Self::Dmenu { rows }),
             "rofi" => Ok(Self::Rofi { rows }),
@@ -103,16 +103,16 @@ mod tests {
 
     #[test]
     fn test_menu_new() {
-        let menu = Menu::new("bemenu", "10".to_string());
+        let menu = Menu::new("bemenu".to_string(), "10".to_string());
         assert!(menu.is_ok());
 
-        let menu = Menu::new("unsupported", "10".to_string());
+        let menu = Menu::new("unsupported".to_string(), "10".to_string());
         assert!(menu.is_err());
     }
 
     #[test]
     fn test_menu_choose() {
-        let menu = Menu::new("bemenu", "10".to_string()).unwrap();
+        let menu = Menu::new("bemenu".to_string(), "10".to_string()).unwrap();
         let result = menu.choose(Some("item1\nitem2"), Some("item1"), "Choose an item");
         if let Ok(result) = result {
             assert!(result == "item1" || result == "item2");
