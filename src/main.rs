@@ -1,10 +1,12 @@
 mod arguments;
 mod data;
 mod menu;
+mod parser;
 
 use arguments::Arguments;
 use data::*;
 use menu::*;
+use parser::*;
 
 use std::error::Error;
 use std::process::Command;
@@ -42,7 +44,7 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(),
         return Ok(());
     }
 
-    if let Some(bookmark) = Data::bookmark_from_line(&file_line) {
+    if let Some(bookmark) = parser::parse_line(&file_line) {
         let option = menu.choose(Some(OPTIONS), None, "options")?;
         if option.is_empty() {
             show_list(menu, bookmarks_data, browser)?;
@@ -50,7 +52,7 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: &str) -> Result<(),
         }
         match option.as_str() {
             OPTIONS_NEW => create(menu, bookmarks_data, browser)?,
-            OPTIONS_GOTO => goto(browser, &bookmark.url())?,
+            OPTIONS_GOTO => goto(browser, bookmark.url())?,
             OPTIONS_MODIFY => modify(menu, bookmarks_data, &bookmark, browser)?,
             OPTIONS_REMOVE => remove(menu, bookmarks_data, &bookmark, browser)?,
             _ => (),
@@ -100,25 +102,25 @@ fn modify(
     bookmark: &Bookmark,
     browser: &str,
 ) -> Result<(), String> {
-    let mut title = bookmark.title();
+    let mut title = bookmark.title().to_string();
     title = menu.choose(Some(&title), None, TITLE)?;
     if title.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
-    
-    let old_url = bookmark.url();
-    let mut url = old_url.clone();
-    url = menu.choose(Some(&url), None, URL)?;
-    if url.is_empty() {
+
+    let categories = Some(bookmarks_data.categories_plain_text());
+    let mut category = bookmark.category().to_string();
+    category = menu.choose(categories, Some(&category), CATEGORY)?;
+    if category.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
-    
-    let categories = Some(bookmarks_data.categories_plain_text());
-    let mut category = bookmark.category();
-    category = menu.choose(categories, Some(&category), CATEGORY)?;
-    if category.is_empty() {
+
+    let old_url = bookmark.url().to_string();
+    let mut url = old_url.clone();
+    url = menu.choose(Some(&url), None, URL)?;
+    if url.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
@@ -141,7 +143,7 @@ fn remove(
         return Ok(());
     }
 
-    bookmarks_data.remove_bookmark(&bookmark.url());
+    bookmarks_data.remove_bookmark(bookmark.url());
 
     show_list(menu, bookmarks_data, browser)
 }

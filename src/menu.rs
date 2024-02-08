@@ -1,11 +1,13 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+const CURRENT_MARKER: &str = " <-- current";
+
 pub enum Menu {
     Bemenu { rows: String },
     Dmenu { rows: String },
     Rofi { rows: String },
-    Fzf { rows: String },
+    Fzf,
 }
 
 impl Menu {
@@ -14,7 +16,7 @@ impl Menu {
             "bemenu" => Ok(Self::Bemenu { rows }),
             "dmenu" => Ok(Self::Dmenu { rows }),
             "rofi" => Ok(Self::Rofi { rows }),
-            "fzf" => Ok(Self::Fzf { rows }),
+            "fzf" => Ok(Self::Fzf),
             _ => Err(format!("Unsupported menu program: {}", menu_program)),
         }
     }
@@ -27,7 +29,7 @@ impl Menu {
     ) -> Result<String, String> {
         let menu_items = match (menu_items, default) {
             (Some(items), Some(default)) => {
-                Some(items.replace(default, &format!("{} <-- current", default)))
+                Some(items.replace(default, &format!("{}{}", default, CURRENT_MARKER)))
             }
             (Some(items), None) => Some(items.to_string()),
             _ => None,
@@ -45,7 +47,7 @@ impl Menu {
                 &["-dmenu", "-i", "-l", rows, "-p", prompt],
                 menu_items,
             ),
-            Self::Fzf { rows: _ } => {
+            Self::Fzf => {
                 let prompt = format!("{}> ", prompt);
                 let menu_items = menu_items.unwrap_or("".to_string());
                 self.run_command(
@@ -57,7 +59,7 @@ impl Menu {
         };
         match (output, default) {
             (Ok(mut output), Some(default)) => {
-                output = output.replace(&format!("{} <-- current", default), default);
+                output = output.replace(&format!("{}{}", default, CURRENT_MARKER), default);
                 Ok(output)
             }
             (Ok(output), None) => Ok(output),

@@ -163,7 +163,10 @@ impl Arguments {
                 if default_path.exists() {
                     Ok(default_path)
                 } else {
-                    let template = Bookmark::default().formatted_line();
+                    let default_bookmark = Bookmark::default();
+                    let title_padding = default_bookmark.title().len();
+                    let category_padding = default_bookmark.category().len();
+                    let template = default_bookmark.formatted_line(title_padding, category_padding);
                     match std::fs::write(&default_path, template) {
                         Ok(_) => Ok(default_path),
                         Err(error) => Err(format!("Failed to create bookmark file: {}", error)),
@@ -190,12 +193,13 @@ impl Arguments {
     pub fn print_help_message() {
         println!("Usage: bookmarks [OPTIONS]\n");
         println!(
-            "This program can search and modify a formatted plain text list of websites:"
+            "This program can search and modify a formatted plain text list of websites.\n"
         );
-        println!("Title @|@ Category @|@ URL\n");
+        println!("format:");
+        println!("  {}\n", Bookmark::default().formatted_line(0, 0));
         println!("Options:");
         println!("  {}, {:19}Menu program to use.", MENU_ARG_SHORT, MENU_ARG_LONG);
-        println!("{:25}Supported programs are '{}', {}', {}, and '{}'.", "", SUPPORTED_MENU_PROGRAMS[0], SUPPORTED_MENU_PROGRAMS[1], SUPPORTED_MENU_PROGRAMS[2], SUPPORTED_MENU_PROGRAMS[3]);
+        println!("{:25}Supported programs are '{}'.", "", SUPPORTED_MENU_PROGRAMS.join("', '"));
         println!("{:25}Default: ({})", "", DEFAULT_MENU_PROGRAM);
         println!("  {}, {:19}Browser command URLs will be passed to.", BROWSER_ARG_SHORT, BROWSER_ARG_LONG);
         println!("{:25}Default: ({})", "",DEFAULT_BROWSER);

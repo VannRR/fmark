@@ -3,74 +3,21 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-const FIELD_SEPARATOR_COUNT: usize = 2;
-const FIELD_SEPARATOR: &str = "@|@";
-const TITLE_PADDED_LENGTH: usize = 24;
-const CATEGORY_PADDED_LENGTH: usize = 18;
-const CATEGORY_SEPARATOR: &str = "-";
-
-#[derive(Clone, PartialEq)]
-pub struct Bookmark {
-    title: String,
-    category: String,
-    url: String,
-}
-
-impl Bookmark {
-    pub fn new(title: String, category: String, url: String) -> Self {
-        Self {
-            title,
-            category,
-            url,
-        }
-    }
-    pub fn default() -> Self {
-        let title = "title".to_string();
-        let category = "category".to_string();
-        let url = "url".to_string();
-        Self {
-            title,
-            category,
-            url,
-        }
-    }
-    pub fn title(&self) -> String {
-        self.title.clone()
-    }
-    pub fn category(&self) -> String {
-        self.category.clone()
-    }
-    pub fn url(&self) -> String {
-        self.url.clone()
-    }
-
-    pub fn formatted_line(&self) -> String {
-        let title = format!("{:.25}", self.title);
-        let category = format!("{:.15}", self.category);
-        format!(
-            "{:25} {} {:15} {} {}\n",
-            title, FIELD_SEPARATOR, category, FIELD_SEPARATOR, self.url
-        )
-    }
-}
-
-fn separator_line() -> String {
-    format!(
-        "{}\n",
-        CATEGORY_SEPARATOR
-            .repeat(TITLE_PADDED_LENGTH + CATEGORY_PADDED_LENGTH + (FIELD_SEPARATOR.len() * 2))
-    )
-}
+use crate::parser::*;
 
 pub struct Data {
     file_path: PathBuf,
     plain_text: String,
-    categories_plain_text: String,
-    previous_version: usize,
-    current_version: usize,
-    categories: Vec<String>,
     bookmarks: HashMap<String, Bookmark>,
     invalid_lines: HashMap<usize, String>,
+    categories_plain_text: String,
+    categories: Vec<String>,
+    previous_version: usize,
+    current_version: usize,
+    previous_longest_title: usize,
+    longest_title: usize,
+    previous_longest_category: usize,
+    longest_category: usize,
     read: bool,
     edited: bool,
     initialized: bool,
@@ -82,12 +29,16 @@ impl Data {
         Self {
             file_path,
             plain_text: String::new(),
-            categories_plain_text: String::new(),
-            previous_version: 0,
-            current_version: 0,
-            categories: Vec::new(),
             bookmarks: HashMap::new(),
             invalid_lines: HashMap::new(),
+            categories_plain_text: String::new(),
+            categories: Vec::new(),
+            previous_version: 0,
+            current_version: 0,
+            previous_longest_title: 0,
+            longest_title: 0,
+            previous_longest_category: 0,
+            longest_category: 0,
             read: false,
             edited: false,
             initialized: false,
@@ -103,7 +54,14 @@ impl Data {
                 error
             )
         })?;
-        self.parse()?;
+        let parsed_file = parse_plain_text(&self.plain_text);
+        self.bookmarks = parsed_file.bookmarks;
+        self.invalid_lines = parsed_file.invalid_lines;
+        self.previous_longest_title = parsed_file.previous_longest_title;
+        self.longest_title = parsed_file.longest_title;
+        self.previous_longest_category = parsed_file.previous_longest_category;
+        self.longest_category = parsed_file.longest_category;
+
         self.read = true;
         Ok(())
     }
@@ -131,14 +89,16 @@ impl Data {
             self.categories_sorted = false;
         }
         let old_bookmark = match old_url {
-            Some(old_url) => self.bookmarks.get(old_url),
+            Some(old_url) => self.bookmarks.get(old_url).cloned(),
             None => None,
         };
-        let new_bookmark = Bookmark::new(title, category.clone(), url.clone());
-        if old_bookmark != Some(&new_bookmark) {
+        let new_bookmark = Bookmark::new(title.clone(), category.clone(), url.clone());
+        if old_bookmark != Some(new_bookmark.clone()) {
             if let Some(old_bookmark) = old_bookmark {
-                self.bookmarks.remove(&old_bookmark.url());
+                self.bookmarks.remove(old_bookmark.url());
             }
+            self.update_longest_title(title.chars().count());
+            self.update_longest_category(category.chars().count());
             self.bookmarks.insert(url, new_bookmark);
             self.current_version += 1;
             self.edited = true;
@@ -149,8 +109,10 @@ impl Data {
         if let Some(bookmark) = self.bookmarks.remove(url) {
             let category = bookmark.category();
             if !self.bookmarks.values().any(|b| b.category() == category) {
-                self.categories.retain(|c| c != &category);
+                self.categories.retain(|c| c != category);
             }
+            self.revert_longest_title(bookmark.title().chars().count());
+            self.revert_longest_category(bookmark.category().chars().count());
             self.current_version += 1;
             self.edited = true;
         }
@@ -164,11 +126,15 @@ impl Data {
         self.plain_text.clear();
 
         let mut bookmarks_vec: Vec<_> = self.bookmarks.values().collect();
+        let separator_line = format!(
+            "{}\n",
+            SEPARATOR_LINE_SYMBOL.repeat(self.longest_title + self.longest_category + 8)
+        );
 
         bookmarks_vec.sort_by(|a, b| {
-            let cat_ordering = Self::alphabetic_sort(&a.category(), &b.category());
+            let cat_ordering = Self::alphabetic_sort(a.category(), b.category());
             if cat_ordering == Ordering::Equal {
-                Self::alphabetic_sort(&a.title(), &b.title())
+                Self::alphabetic_sort(a.title(), b.title())
             } else {
                 cat_ordering
             }
@@ -182,11 +148,13 @@ impl Data {
             } else if i < bookmarks_vec.len() {
                 if let Some(cat) = current_category {
                     if cat != bookmarks_vec[i].category() {
-                        self.plain_text.push_str(&separator_line());
+                        self.plain_text.push_str(&separator_line);
                     }
                 }
                 current_category = Some(bookmarks_vec[i].category());
-                self.plain_text.push_str(&bookmarks_vec[i].formatted_line());
+                self.plain_text.push_str(
+                    &bookmarks_vec[i].formatted_line(self.longest_title, self.longest_category),
+                );
             }
         }
 
@@ -207,43 +175,6 @@ impl Data {
                 .collect::<String>();
         }
         &self.categories_plain_text
-    }
-
-    pub fn bookmark_from_line(line: &str) -> Option<Bookmark> {
-        if line.matches(FIELD_SEPARATOR).count() != FIELD_SEPARATOR_COUNT {
-            return None;
-        }
-
-        let bookmark = line.split(FIELD_SEPARATOR).collect::<Vec<&str>>();
-
-        let title = bookmark[0].trim().to_string();
-        let category = bookmark[1].trim().to_string();
-        let url = bookmark[2].trim().to_string();
-
-        Some(Bookmark::new(title, category, url))
-    }
-
-    fn parse(&mut self) -> Result<(), String> {
-        let lines = self.plain_text.lines();
-        for (i, line) in lines.enumerate() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with(CATEGORY_SEPARATOR) {
-                continue;
-            }
-
-            if line.matches(FIELD_SEPARATOR).count() == FIELD_SEPARATOR_COUNT {
-                if let Some(bookmark) = Data::bookmark_from_line(line) {
-                    if !self.categories.contains(&bookmark.category()) {
-                        self.categories.push(bookmark.category().clone());
-                    }
-                    self.bookmarks.insert(bookmark.url.clone(), bookmark);
-                }
-            } else {
-                self.invalid_lines.insert(i, format!("{}\n", line));
-            }
-        }
-
-        Ok(())
     }
 
     fn alphabetic_sort(a: &str, b: &str) -> Ordering {
@@ -267,29 +198,37 @@ impl Data {
 
         a.len().cmp(&b.len())
     }
+
+    fn update_longest_title(&mut self, title_length: usize) {
+        if title_length > self.longest_title {
+            self.previous_longest_title = self.longest_title;
+            self.longest_title = title_length
+        }
+    }
+    fn update_longest_category(&mut self, category_length: usize) {
+        if category_length > self.longest_category {
+            self.previous_longest_category = self.longest_category;
+            self.longest_category = category_length
+        }
+    }
+
+    fn revert_longest_title(&mut self, title_length: usize) {
+        if title_length >= self.longest_title {
+            self.longest_title = self.previous_longest_title;
+        }
+    }
+
+    fn revert_longest_category(&mut self, category_length: usize) {
+        if category_length >= self.longest_category {
+            self.longest_category = self.previous_longest_category;
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs::File;
-
-    #[test]
-    fn test_data_new() {
-        let data = Data::new(PathBuf::from("test.txt"));
-        assert_eq!(data.file_path, PathBuf::from("test.txt"));
-        assert_eq!(data.plain_text, "");
-        assert_eq!(data.categories_plain_text, "");
-        assert_eq!(data.previous_version, 0);
-        assert_eq!(data.current_version, 0);
-        assert!(data.categories.is_empty());
-        assert!(data.bookmarks.is_empty());
-        assert!(data.invalid_lines.is_empty());
-        assert!(!data.read);
-        assert!(!data.edited);
-        assert!(!data.initialized);
-        assert!(!data.categories_sorted);
-    }
 
     #[test]
     fn test_data_read() {
@@ -330,15 +269,15 @@ mod tests {
     #[test]
     fn test_data_plain_text() {
         let mut data = Data::new(PathBuf::from("test.txt"));
-        data.set_bookmark("category", "title", "url", None);
-        println!(
-            "{}{}",
-            data.plain_text(),
-            Bookmark::default().formatted_line()
-        );
+        let bookmark = Bookmark::default();
+        let title_padding = bookmark.title().chars().count();
+        let category_padding = bookmark.category().chars().count();
+        data.set_bookmark(bookmark.category(), bookmark.title(), bookmark.url(), None);
         assert_eq!(
             data.plain_text(),
-            Bookmark::default().formatted_line().to_string()
+            bookmark
+                .formatted_line(title_padding, category_padding)
+                .to_string()
         );
     }
 
@@ -350,30 +289,41 @@ mod tests {
     }
 
     #[test]
-    fn test_data_bookmark_from_line() {
-        let line = "title                   @|@ category         @|@ url";
-        let bookmark = Data::bookmark_from_line(line);
-        assert!(bookmark.is_some());
-        let bookmark = bookmark.unwrap();
-        assert_eq!(bookmark.title(), "title");
-        assert_eq!(bookmark.category(), "category");
-        assert_eq!(bookmark.url(), "url");
-    }
-
-    #[test]
-    fn test_data_parse() {
-        let mut data = Data::new(PathBuf::from("test.txt"));
-        let _ = File::create(&data.file_path).unwrap();
-        data.plain_text = Bookmark::default().formatted_line().to_string();
-        assert!(data.parse().is_ok());
-        assert_eq!(data.bookmarks.len(), 1);
-        assert_eq!(data.categories.len(), 1);
-    }
-
-    #[test]
     fn test_data_alphabetic_sort() {
         assert_eq!(Data::alphabetic_sort("a", "b"), Ordering::Less);
         assert_eq!(Data::alphabetic_sort("b", "a"), Ordering::Greater);
         assert_eq!(Data::alphabetic_sort("a", "a"), Ordering::Equal);
+    }
+
+    #[test]
+    fn test_data_update_longest_title() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        data.update_longest_title(10);
+        assert_eq!(data.longest_title, 10);
+    }
+
+    #[test]
+    fn test_data_update_longest_category() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        data.update_longest_category(10);
+        assert_eq!(data.longest_category, 10);
+    }
+
+    #[test]
+    fn test_data_revert_longest_title() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        data.update_longest_title(10);
+        data.update_longest_title(20);
+        data.revert_longest_title(20);
+        assert_eq!(data.longest_title, 10);
+    }
+
+    #[test]
+    fn test_data_revert_longest_category() {
+        let mut data = Data::new(PathBuf::from("test.txt"));
+        data.update_longest_category(10);
+        data.update_longest_category(20);
+        data.revert_longest_category(20);
+        assert_eq!(data.longest_category, 10);
     }
 }
