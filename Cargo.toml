@@ -1,5 +1,5 @@
 [package]
-name = "bookmarks"
+name = "fmark"
 version = "0.9.0"
 authors = ["Vann Rollins (https://github.com/vannrr)"]
 edition = "2021"
@@ -7,5 +7,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
-name = "bookmarks"
+name = "fmark"
 path = "src/main.rs"

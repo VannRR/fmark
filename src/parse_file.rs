@@ -25,11 +25,11 @@ impl ParsedFile {
         };
         let lines = file.lines();
         for (i, line) in lines.enumerate() {
-            let line = line.trim();
-            if line.starts_with(SEPARATOR_LINE_SYMBOL) {
+            let trimmed_line = line.trim();
+            if trimmed_line.starts_with(SEPARATOR_LINE_SYMBOL) {
                 continue;
             }
-            match Bookmark::from_line(line) {
+            match Bookmark::from_line(trimmed_line) {
                 Some(bookmark) => {
                     let title_char_count = bookmark.title().chars().count();
                     if title_char_count > parsed_file.longest_title {
@@ -50,7 +50,7 @@ impl ParsedFile {
                         .insert(bookmark.url().to_string(), bookmark);
                 }
                 None => {
-                    parsed_file.invalid_lines.insert(i, format!("{}\n", line));
+                    parsed_file.invalid_lines.insert(i, line.to_string());
                 }
             }
         }

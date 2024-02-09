@@ -132,7 +132,7 @@ impl Data {
         let combined_len = bookmarks_vec.len() + self.parsed_file.invalid_lines.len();
         for i in 0..combined_len {
             if let Some(line) = self.parsed_file.invalid_lines.get(&i) {
-                self.plain_text.push_str(line);
+                self.plain_text.push_str(&format!("{}\n", line));
             } else if i < bookmarks_vec.len() {
                 if let Some(cat) = current_category {
                     if cat != bookmarks_vec[i].category() {

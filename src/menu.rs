@@ -29,7 +29,10 @@ impl Menu {
     ) -> Result<String, String> {
         let menu_items = match (menu_items, default) {
             (Some(items), Some(default)) => {
-                Some(items.replace(default, &format!("{}{}", default, CURRENT_MARKER)))
+                let mut items = items.to_string();
+                items = items.replace(&format!("{}\n", default), "");
+                items = format!("{}{}\n{}", default, CURRENT_MARKER, items);
+                Some(items)
             }
             (Some(items), None) => Some(items.to_string()),
             _ => None,
@@ -113,7 +116,7 @@ mod tests {
     #[test]
     fn test_menu_choose() {
         let menu = Menu::new("bemenu".to_string(), "10".to_string()).unwrap();
-        let result = menu.choose(Some("pass\nfail"), Some("item1"), "Choose an item");
+        let result = menu.choose(Some("pass\nfail"), Some("pass"), "Choose an item");
         if let Ok(result) = result {
             assert_eq!(result, "pass");
         }

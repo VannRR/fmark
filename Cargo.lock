@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "bookmarks"
+name = "fmark"
 version = "0.9.0"

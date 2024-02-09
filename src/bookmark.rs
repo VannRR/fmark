@@ -30,7 +30,7 @@ impl Bookmark {
     pub fn default() -> Self {
         let title = "Project's Github".to_string();
         let category = "Development".to_string();
-        let url = "https://github.com/vannrr/bookmarks".to_string();
+        let url = "https://github.com/vannrr/fmark".to_string();
         Self {
             title,
             category,
@@ -148,7 +148,7 @@ mod tests {
         let bookmark = Bookmark::default();
         assert_eq!(bookmark.title(), "Project's Github");
         assert_eq!(bookmark.category(), "Development");
-        assert_eq!(bookmark.url(), "https://github.com/vannrr/bookmarks");
+        assert_eq!(bookmark.url(), "https://github.com/vannrr/fmark");
     }
 
     #[test]

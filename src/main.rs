@@ -23,8 +23,6 @@ const URL: &str = "url";
 const CATEGORY: &str = "category";
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("TODO, add a readme, and upload to github.");
-
     let arguments = Arguments::new()?;
 
     let mut bookmarks_data = Data::new(arguments.bookmark_file_path)?;

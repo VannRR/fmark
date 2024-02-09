@@ -175,7 +175,7 @@ impl Arguments {
 
     #[rustfmt::skip]
     pub fn print_help_message() {
-        println!("Usage: bookmarks [OPTIONS]\n");
+        println!("Usage: fmark [OPTIONS]\n");
         println!(
             "This program can search and modify a formatted plain text list of websites.\n"
         );
