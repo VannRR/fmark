@@ -51,8 +51,8 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(
         match option.as_str() {
             OPTIONS_GOTO => goto(browser, bookmark.url())?,
             OPTIONS_NEW => create(menu, bookmarks_data, browser)?,
-            OPTIONS_MODIFY => modify(menu, bookmarks_data, &bookmark, browser)?,
-            OPTIONS_REMOVE => remove(menu, bookmarks_data, &bookmark, browser)?,
+            OPTIONS_MODIFY => modify(menu, bookmarks_data, bookmark, browser)?,
+            OPTIONS_REMOVE => remove(menu, bookmarks_data, bookmark, browser)?,
             _ => (),
         };
     };
@@ -89,7 +89,9 @@ fn create(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), 
         return Ok(());
     }
 
-    bookmarks_data.set_bookmark(category, title, url, None);
+    let new_bookmark = Bookmark::new(title, category, url);
+
+    bookmarks_data.set_bookmark(new_bookmark, None);
 
     show_list(menu, bookmarks_data, browser)
 }
@@ -97,7 +99,7 @@ fn create(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), 
 fn modify(
     menu: Menu,
     bookmarks_data: &mut Data,
-    bookmark: &Bookmark,
+    bookmark: Bookmark,
     browser: String,
 ) -> Result<(), String> {
     let mut title = bookmark.title().to_string();
@@ -115,15 +117,16 @@ fn modify(
         return Ok(());
     }
 
-    let old_url = bookmark.url().to_string();
-    let mut url = old_url.clone();
+    let mut url = bookmark.url().to_string();
     url = menu.choose(Some(&url), None, URL)?;
     if url.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
     }
 
-    bookmarks_data.set_bookmark(category, title, url, Some(&old_url));
+    let new_bookmark = Bookmark::new(title, category, url);
+
+    bookmarks_data.set_bookmark(new_bookmark, Some(bookmark));
 
     show_list(menu, bookmarks_data, browser)
 }
@@ -131,7 +134,7 @@ fn modify(
 fn remove(
     menu: Menu,
     bookmarks_data: &mut Data,
-    bookmark: &Bookmark,
+    bookmark: Bookmark,
     browser: String,
 ) -> Result<(), String> {
     let prompt = format!("Remove {}? (yes/no)", bookmark.title().trim());

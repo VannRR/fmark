@@ -38,18 +38,18 @@ impl Menu {
             _ => None,
         };
 
-        let output = match self {
+        let mut output = match self {
             Self::Bemenu { rows } => {
-                self.run_command("bemenu", &["-i", "-l", rows, "-p", prompt], menu_items)
+                self.run_command("bemenu", &["-i", "-l", rows, "-p", prompt], menu_items)?
             }
             Self::Dmenu { rows } => {
-                self.run_command("dmenu", &["-i", "-l", rows, "-p", prompt], menu_items)
+                self.run_command("dmenu", &["-i", "-l", rows, "-p", prompt], menu_items)?
             }
             Self::Rofi { rows } => self.run_command(
                 "rofi",
                 &["-dmenu", "-i", "-l", rows, "-p", prompt],
                 menu_items,
-            ),
+            )?,
             Self::Fzf => {
                 let prompt = format!("{}> ", prompt);
                 let menu_items = menu_items.unwrap_or("".to_string());
@@ -57,17 +57,14 @@ impl Menu {
                     "fzf",
                     &["-i", "--print-query", "--prompt", &prompt],
                     Some(menu_items),
-                )
+                )?
             }
         };
-        match (output, default) {
-            (Ok(mut output), Some(default)) => {
-                output = output.replace(&format!("{}{}", default, CURRENT_MARKER), default);
-                Ok(output)
-            }
-            (Ok(output), None) => Ok(output),
-            (Err(e), _) => Err(e),
-        }
+        if let Some(default) = default {
+            output = output.replace(&format!("{}{}", default, CURRENT_MARKER), default);
+        };
+
+        Ok(output)
     }
 
     fn run_command(

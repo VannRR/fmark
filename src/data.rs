@@ -56,33 +56,29 @@ impl Data {
         })
     }
 
-    pub fn set_bookmark(
-        &mut self,
-        category: String,
-        title: String,
-        url: String,
-        old_url: Option<&str>,
-    ) {
-        if !self.parsed_file.categories.contains(&category) {
-            self.parsed_file.categories.push(category.clone());
+    pub fn set_bookmark(&mut self, new_bookmark: Bookmark, old_bookmark: Option<Bookmark>) {
+        if let Some(old_bookmark) = old_bookmark {
+            self.remove_bookmark(old_bookmark.url());
+        }
+        if !self
+            .parsed_file
+            .categories
+            .contains(&new_bookmark.category().to_string())
+        {
+            self.parsed_file
+                .categories
+                .push(new_bookmark.category().to_string());
             self.categories_sorted = false;
         }
-        let old_bookmark = match old_url {
-            Some(old_url) => self.parsed_file.bookmarks.get(old_url),
-            None => None,
-        };
-        let new_bookmark = Bookmark::new(title.clone(), category.clone(), url.clone());
-        if old_bookmark != Some(&new_bookmark) {
-            if let Some(old_url) = old_url {
-                self.parsed_file.bookmarks.remove(old_url);
-            }
-            self.parsed_file.update_longest_title(title.chars().count());
-            self.parsed_file
-                .update_longest_category(category.chars().count());
-            self.parsed_file.bookmarks.insert(url, new_bookmark);
-            self.current_version += 1;
-            self.edited = true;
-        }
+        self.parsed_file
+            .update_longest_title(new_bookmark.title().to_string().chars().count());
+        self.parsed_file
+            .update_longest_category(new_bookmark.category().chars().count());
+        self.parsed_file
+            .bookmarks
+            .insert(new_bookmark.url().to_string(), new_bookmark);
+        self.current_version += 1;
+        self.edited = true;
     }
 
     pub fn remove_bookmark(&mut self, url: &str) {
@@ -217,12 +213,8 @@ mod tests {
     #[test]
     fn test_data_set_bookmark() {
         let mut data = Data::new(PathBuf::from("test.txt")).unwrap();
-        data.set_bookmark(
-            "category".to_string(),
-            "title".to_string(),
-            "url".to_string(),
-            None,
-        );
+        let bookmark = Bookmark::default();
+        data.set_bookmark(bookmark, None);
         assert_eq!(data.parsed_file.bookmarks.len(), 1);
         assert_eq!(data.parsed_file.categories.len(), 1);
         assert!(data.edited);
@@ -231,13 +223,10 @@ mod tests {
     #[test]
     fn test_data_remove_bookmark() {
         let mut data = Data::new(PathBuf::from("test.txt")).unwrap();
-        data.set_bookmark(
-            "category".to_string(),
-            "title".to_string(),
-            "url".to_string(),
-            None,
-        );
-        data.remove_bookmark("url");
+        let bookmark = Bookmark::default();
+        let url = bookmark.url().to_string();
+        data.set_bookmark(bookmark, None);
+        data.remove_bookmark(&url);
         assert!(data.parsed_file.bookmarks.is_empty());
         assert!(data.parsed_file.categories.is_empty());
         assert!(data.edited);
@@ -249,12 +238,7 @@ mod tests {
         let bookmark = Bookmark::default();
         let title_padding = bookmark.title().chars().count();
         let category_padding = bookmark.category().chars().count();
-        data.set_bookmark(
-            bookmark.category().to_string(),
-            bookmark.title().to_string(),
-            bookmark.url().to_string(),
-            None,
-        );
+        data.set_bookmark(bookmark.clone(), None);
         assert_eq!(
             data.plain_text(),
             bookmark
@@ -266,13 +250,10 @@ mod tests {
     #[test]
     fn test_data_categories_plain_text() {
         let mut data = Data::new(PathBuf::from("test.txt")).unwrap();
-        data.set_bookmark(
-            "category".to_string(),
-            "title".to_string(),
-            "url".to_string(),
-            None,
-        );
-        assert_eq!(data.categories_plain_text(), "category\n");
+        let bookmark = Bookmark::default();
+        let category = bookmark.category().to_string();
+        data.set_bookmark(bookmark, None);
+        assert_eq!(data.categories_plain_text(), format!("{}\n", category));
     }
 
     #[test]
