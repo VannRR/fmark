@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::{bookmark::Bookmark, SEPARATOR_LINE_SYMBOL};
+use crate::bookmark::Bookmark;
+use crate::plain_text::SEPARATOR_LINE_SYMBOL;
 
 pub struct ParsedFile {
     pub bookmarks: HashMap<String, Bookmark>,
@@ -13,7 +14,7 @@ pub struct ParsedFile {
 }
 
 impl ParsedFile {
-    pub fn new(file: &str) -> Self {
+    pub fn new(plain_text_bookmarks: &str) -> Self {
         let mut parsed_file = ParsedFile {
             bookmarks: HashMap::new(),
             invalid_lines: HashMap::new(),
@@ -23,7 +24,7 @@ impl ParsedFile {
             previous_longest_category: 0,
             longest_category: 0,
         };
-        let lines = file.lines();
+        let lines = plain_text_bookmarks.lines();
         for (i, line) in lines.enumerate() {
             let trimmed_line = line.trim();
             if trimmed_line.starts_with(SEPARATOR_LINE_SYMBOL) {

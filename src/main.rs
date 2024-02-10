@@ -2,7 +2,8 @@ mod arguments;
 mod bookmark;
 mod data;
 mod menu;
-mod parse_file;
+mod parsed_file;
+mod plain_text;
 
 use arguments::Arguments;
 use bookmark::Bookmark;
@@ -36,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), String> {
-    let bookmarks_list = Some(bookmarks_data.plain_text());
+    let bookmarks_list = Some(bookmarks_data.plain_text_bookmarks());
     let file_line = menu.choose(bookmarks_list, None, "bookmarks")?;
     if file_line.is_empty() {
         return Ok(());
@@ -76,7 +77,7 @@ fn create(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), 
         return Ok(());
     }
 
-    let categories = Some(bookmarks_data.categories_plain_text());
+    let categories = Some(bookmarks_data.plain_text_categories());
     let category = menu.choose(categories, None, CATEGORY)?;
     if category.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
@@ -109,7 +110,7 @@ fn modify(
         return Ok(());
     }
 
-    let categories = Some(bookmarks_data.categories_plain_text());
+    let categories = Some(bookmarks_data.plain_text_categories());
     let mut category = bookmark.category().to_string();
     category = menu.choose(categories, Some(&category), CATEGORY)?;
     if category.is_empty() {
