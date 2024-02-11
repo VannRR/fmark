@@ -5,16 +5,20 @@ use std::path::PathBuf;
 use crate::parsed_file::*;
 
 pub const SEPARATOR_LINE_SYMBOL: &str = "-";
+pub const ADD_BOOKMARK: &str = "-| Add Bookmark |-";
+const MAX_FILE_SIZE: u64 = 5 * 1024 * 1024;
 
 pub struct PlainText {
     file_path: PathBuf,
     bookmarks: String,
+    previous_bookmarks_version: usize,
+    current_bookmarks_version: usize,
+    bookmarks_initialized: bool,
     categories: String,
-    previous_version: usize,
-    current_version: usize,
+    previous_categories_version: usize,
+    current_categories_version: usize,
+    categories_initialized: bool,
     edited: bool,
-    initialized: bool,
-    categories_sorted: bool,
 }
 
 impl PlainText {
@@ -22,12 +26,14 @@ impl PlainText {
         Ok(Self {
             file_path,
             bookmarks: String::new(),
+            previous_bookmarks_version: 0,
+            current_bookmarks_version: 0,
+            bookmarks_initialized: false,
             categories: String::new(),
-            previous_version: 0,
-            current_version: 0,
+            previous_categories_version: 0,
+            current_categories_version: 0,
+            categories_initialized: false,
             edited: false,
-            initialized: false,
-            categories_sorted: false,
         })
     }
 
@@ -44,19 +50,37 @@ impl PlainText {
         self.edited
     }
 
-    pub fn set_categories_sorted_false(&mut self) {
-        self.categories_sorted = false;
-    }
-
     pub fn set_edited_true(&mut self) {
         self.edited = true;
     }
 
-    pub fn increment_version(&mut self) {
-        self.current_version += 1;
+    pub fn increment_bookmarks_version(&mut self) {
+        self.current_bookmarks_version += 1;
+    }
+
+    pub fn increment_categories_version(&mut self) {
+        self.current_categories_version += 1;
     }
 
     pub fn read(&mut self) -> Result<(), String> {
+        if fs::metadata(&self.file_path)
+            .map_err(|error| {
+                format!(
+                    "Failed to read bookmark file {}: {}",
+                    self.file_path.display(),
+                    error
+                )
+            })?
+            .len()
+            > MAX_FILE_SIZE
+        {
+            return Err(format!(
+                "File larger than {} megabytes: {}",
+                MAX_FILE_SIZE / 1_000_000,
+                self.file_path.display()
+            ));
+        }
+
         self.bookmarks = fs::read_to_string(&self.file_path).map_err(|error| {
             format!(
                 "Failed to read bookmark file {}: {}",
@@ -83,11 +107,16 @@ impl PlainText {
     }
 
     pub fn update_bookmarks(&mut self, parsed_file: &ParsedFile) {
-        if self.previous_version == self.current_version && self.initialized {
+        if self.previous_bookmarks_version == self.current_bookmarks_version
+            && self.bookmarks_initialized
+        {
             return;
         };
 
         self.bookmarks.clear();
+
+        self.bookmarks
+            .push_str(&Self::formatted_add_bookmark(parsed_file));
 
         let mut bookmarks_vec: Vec<_> = parsed_file.bookmarks.values().collect();
         let separator_line = format!(
@@ -124,27 +153,28 @@ impl PlainText {
             }
         }
 
-        self.previous_version = self.current_version;
-        self.initialized = true;
+        self.previous_bookmarks_version = self.current_bookmarks_version;
+        self.bookmarks_initialized = true;
     }
 
-    pub fn update_categories(&mut self, parsed_file: &mut ParsedFile) {
-        if !self.categories_sorted {
-            parsed_file
-                .categories
-                .sort_by(|a, b| Self::alphabetic_sort(a, b));
+    pub fn update_categories(&mut self, parsed_file: &ParsedFile) {
+        if self.previous_categories_version == self.current_categories_version
+            && self.categories_initialized
+        {
+            return;
+        };
 
-            self.categories = parsed_file
-                .categories
-                .iter()
-                .map(|category| format!("{}\n", category))
-                .collect::<String>();
+        self.categories = parsed_file
+            .categories()
+            .iter()
+            .map(|category| format!("{}\n", category))
+            .collect::<String>();
 
-            self.categories_sorted = true;
-        }
+        self.previous_categories_version = self.current_categories_version;
+        self.categories_initialized = true;
     }
 
-    fn alphabetic_sort(a: &str, b: &str) -> Ordering {
+    pub fn alphabetic_sort(a: &str, b: &str) -> Ordering {
         let a = a
             .chars()
             .filter(|c| c.is_ascii_alphabetic() || c.is_ascii_digit())
@@ -155,15 +185,20 @@ impl PlainText {
             .filter(|c| c.is_ascii_alphabetic() || c.is_ascii_digit())
             .collect::<String>()
             .to_lowercase();
+        a.cmp(&b)
+    }
 
-        let len = if a.len() < b.len() { a.len() } else { b.len() };
-        for i in 0..len {
-            if a.chars().nth(i) != b.chars().nth(i) {
-                return a.chars().nth(i).cmp(&b.chars().nth(i));
-            }
-        }
-
-        a.len().cmp(&b.len())
+    fn formatted_add_bookmark(parsed_file: &ParsedFile) -> String {
+        let padding = (parsed_file.longest_title + parsed_file.longest_category + 8)
+            .saturating_sub(ADD_BOOKMARK.chars().count());
+        let left_padding = padding / 2;
+        let right_padding = padding - left_padding;
+        format!(
+            "{}{}{}\n",
+            SEPARATOR_LINE_SYMBOL.repeat(left_padding),
+            ADD_BOOKMARK,
+            SEPARATOR_LINE_SYMBOL.repeat(right_padding)
+        )
     }
 }
 
@@ -224,8 +259,8 @@ mod tests {
         let _ = File::create(path.clone()).unwrap();
         let mut plain_text = PlainText::new(path).unwrap();
         let mut parsed_file = ParsedFile::new(plain_text.bookmarks());
-        parsed_file.categories.push("a".to_string());
-        plain_text.update_categories(&mut parsed_file);
+        parsed_file.add_category("category".to_string());
+        plain_text.update_categories(&parsed_file);
         assert!(!plain_text.categories().is_empty());
     }
 

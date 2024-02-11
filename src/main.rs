@@ -9,15 +9,16 @@ use arguments::Arguments;
 use bookmark::Bookmark;
 use data::*;
 use menu::*;
+use plain_text::ADD_BOOKMARK;
 
 use std::error::Error;
 use std::process::Command;
 
 const OPTIONS_GOTO: &str = "goto";
-const OPTIONS_NEW: &str = "create";
 const OPTIONS_MODIFY: &str = "modify";
 const OPTIONS_REMOVE: &str = "remove";
-const OPTIONS: &str = "goto\ncreate\nmodify\nremove";
+const OPTIONS_CANCEL: &str = "cancel";
+const OPTIONS: &str = "goto\nmodify\nremove\ncancel";
 
 const TITLE: &str = "title";
 const URL: &str = "url";
@@ -51,11 +52,15 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(
         }
         match option.as_str() {
             OPTIONS_GOTO => goto(browser, bookmark.url())?,
-            OPTIONS_NEW => create(menu, bookmarks_data, browser)?,
             OPTIONS_MODIFY => modify(menu, bookmarks_data, bookmark, browser)?,
             OPTIONS_REMOVE => remove(menu, bookmarks_data, bookmark, browser)?,
+            OPTIONS_CANCEL => {
+                show_list(menu, bookmarks_data, browser)?;
+            }
             _ => (),
         };
+    } else if file_line.contains(ADD_BOOKMARK) {
+        create(menu, bookmarks_data, browser)?;
     };
 
     Ok(())

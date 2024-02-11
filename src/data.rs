@@ -26,7 +26,7 @@ impl Data {
     }
 
     pub fn plain_text_categories(&mut self) -> &str {
-        self.plain_text.update_categories(&mut self.parsed_file);
+        self.plain_text.update_categories(&self.parsed_file);
         self.plain_text.categories()
     }
 
@@ -38,16 +38,12 @@ impl Data {
         if let Some(old_bookmark) = old_bookmark {
             self.remove_bookmark(old_bookmark.url());
         }
-        if !self
+        if self
             .parsed_file
-            .categories
-            .contains(&new_bookmark.category().to_string())
+            .add_category(new_bookmark.category().to_string())
         {
-            self.parsed_file
-                .categories
-                .push(new_bookmark.category().to_string());
-            self.plain_text.set_categories_sorted_false();
-        }
+            self.plain_text.increment_categories_version();
+        };
         self.parsed_file
             .update_longest_title(new_bookmark.title().to_string().chars().count());
         self.parsed_file
@@ -55,26 +51,21 @@ impl Data {
         self.parsed_file
             .bookmarks
             .insert(new_bookmark.url().to_string(), new_bookmark);
-        self.plain_text.increment_version();
+        self.plain_text.increment_bookmarks_version();
         self.plain_text.set_edited_true();
     }
 
     pub fn remove_bookmark(&mut self, url: &str) {
         if let Some(bookmark) = self.parsed_file.bookmarks.remove(url) {
             let category = bookmark.category();
-            if !self
-                .parsed_file
-                .bookmarks
-                .values()
-                .any(|b| b.category() == category)
-            {
-                self.parsed_file.categories.retain(|c| c != category);
+            if self.parsed_file.remove_category(category) {
+                self.plain_text.increment_categories_version();
             }
             self.parsed_file
                 .revert_longest_title(bookmark.title().chars().count());
             self.parsed_file
                 .revert_longest_category(bookmark.category().chars().count());
-            self.plain_text.increment_version();
+            self.plain_text.increment_bookmarks_version();
             self.plain_text.set_edited_true();
         }
     }
@@ -98,7 +89,7 @@ mod tests {
         let bookmark = Bookmark::default();
         data.set_bookmark(bookmark, None);
         assert_eq!(data.parsed_file.bookmarks.len(), 1);
-        assert_eq!(data.parsed_file.categories.len(), 1);
+        assert_eq!(data.parsed_file.categories().len(), 1);
         assert!(data.plain_text.edited());
     }
 
@@ -110,7 +101,7 @@ mod tests {
         data.set_bookmark(bookmark, None);
         data.remove_bookmark(&url);
         assert!(data.parsed_file.bookmarks.is_empty());
-        assert!(data.parsed_file.categories.is_empty());
+        assert!(data.parsed_file.categories().is_empty());
         assert!(data.plain_text.edited());
     }
 }
