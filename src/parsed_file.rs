@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::bookmark::Bookmark;
-use crate::plain_text::{PlainText, SEPARATOR_LINE_SYMBOL};
+use crate::plain_text::PlainText;
+use crate::SEPARATOR_LINE_SYMBOL;
 
 pub struct ParsedFile {
     pub bookmarks: HashMap<String, Bookmark>,

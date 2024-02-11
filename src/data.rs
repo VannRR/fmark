@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::bookmark::Bookmark;
-use crate::parsed_file::*;
 use crate::plain_text::PlainText;
+use crate::{parsed_file::*, ADD_BOOKMARK, SEPARATOR_LINE_SYMBOL};
 
 pub struct Data {
     plain_text: PlainText,
@@ -28,6 +28,19 @@ impl Data {
     pub fn plain_text_categories(&mut self) -> &str {
         self.plain_text.update_categories(&self.parsed_file);
         self.plain_text.categories()
+    }
+
+    pub fn add_bookmark_option_string(&self) -> String {
+        let padding = (self.parsed_file.longest_title + self.parsed_file.longest_category + 8)
+            .saturating_sub(ADD_BOOKMARK.chars().count());
+        let left_padding = padding / 2;
+        let right_padding = padding - left_padding;
+        format!(
+            "{}{}{}",
+            SEPARATOR_LINE_SYMBOL.repeat(left_padding),
+            ADD_BOOKMARK,
+            SEPARATOR_LINE_SYMBOL.repeat(right_padding)
+        )
     }
 
     pub fn write(&mut self) -> Result<(), String> {

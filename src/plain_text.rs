@@ -2,10 +2,8 @@ use std::cmp::Ordering;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::parsed_file::*;
+use crate::{parsed_file::*, SEPARATOR_LINE_SYMBOL};
 
-pub const SEPARATOR_LINE_SYMBOL: &str = "-";
-pub const ADD_BOOKMARK: &str = "-| Add Bookmark |-";
 const MAX_FILE_SIZE: u64 = 5 * 1024 * 1024;
 
 pub struct PlainText {
@@ -115,9 +113,6 @@ impl PlainText {
 
         self.bookmarks.clear();
 
-        self.bookmarks
-            .push_str(&Self::formatted_add_bookmark(parsed_file));
-
         let mut bookmarks_vec: Vec<_> = parsed_file.bookmarks.values().collect();
         let separator_line = format!(
             "{}\n",
@@ -186,19 +181,6 @@ impl PlainText {
             .collect::<String>()
             .to_lowercase();
         a.cmp(&b)
-    }
-
-    fn formatted_add_bookmark(parsed_file: &ParsedFile) -> String {
-        let padding = (parsed_file.longest_title + parsed_file.longest_category + 8)
-            .saturating_sub(ADD_BOOKMARK.chars().count());
-        let left_padding = padding / 2;
-        let right_padding = padding - left_padding;
-        format!(
-            "{}{}{}\n",
-            SEPARATOR_LINE_SYMBOL.repeat(left_padding),
-            ADD_BOOKMARK,
-            SEPARATOR_LINE_SYMBOL.repeat(right_padding)
-        )
     }
 }
 

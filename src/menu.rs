@@ -1,8 +1,6 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-const CURRENT_MARKER: &str = " <-- current";
-
 pub enum Menu {
     Bemenu { rows: String },
     Dmenu { rows: String },
@@ -31,14 +29,14 @@ impl Menu {
             (Some(items), Some(default)) => {
                 let mut items = items.to_string();
                 items = items.replace(&format!("{}\n", default), "");
-                items = format!("{}{}\n{}", default, CURRENT_MARKER, items);
+                items = format!("{}\n{}", default, items);
                 Some(items)
             }
             (Some(items), None) => Some(items.to_string()),
             _ => None,
         };
 
-        let mut output = match self {
+        let output = match self {
             Self::Bemenu { rows } => {
                 self.run_command("bemenu", &["-i", "-l", rows, "-p", prompt], menu_items)?
             }
@@ -59,9 +57,6 @@ impl Menu {
                     Some(menu_items),
                 )?
             }
-        };
-        if let Some(default) = default {
-            output = output.replace(&format!("{}{}", default, CURRENT_MARKER), default);
         };
 
         Ok(output)

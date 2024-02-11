@@ -9,10 +9,12 @@ use arguments::Arguments;
 use bookmark::Bookmark;
 use data::*;
 use menu::*;
-use plain_text::ADD_BOOKMARK;
 
 use std::error::Error;
 use std::process::Command;
+
+pub const SEPARATOR_LINE_SYMBOL: &str = "-";
+pub const ADD_BOOKMARK: &str = "-| Add Bookmark |-";
 
 const OPTIONS_GOTO: &str = "goto";
 const OPTIONS_MODIFY: &str = "modify";
@@ -38,8 +40,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), String> {
+    let add_bookmark_option_string = bookmarks_data.add_bookmark_option_string();
+
     let bookmarks_list = Some(bookmarks_data.plain_text_bookmarks());
-    let file_line = menu.choose(bookmarks_list, None, "bookmarks")?;
+    let file_line = menu.choose(
+        bookmarks_list,
+        Some(&add_bookmark_option_string),
+        "bookmarks",
+    )?;
     if file_line.is_empty() {
         return Ok(());
     }
@@ -59,7 +67,7 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(
             }
             _ => (),
         };
-    } else if file_line.contains(ADD_BOOKMARK) {
+    } else if file_line.contains(&add_bookmark_option_string) {
         create(menu, bookmarks_data, browser)?;
     };
 
@@ -115,12 +123,21 @@ fn modify(
         return Ok(());
     }
 
-    let categories = Some(bookmarks_data.plain_text_categories());
-    let mut category = bookmark.category().to_string();
-    category = menu.choose(categories, Some(&category), CATEGORY)?;
-    if category.is_empty() {
+    let old_category = bookmark.category().to_string();
+    let old_category_w_indicator = format!("{} {}", old_category, "<-- current");
+
+    let categories = bookmarks_data
+        .plain_text_categories()
+        .replace(&format!("{}\n", old_category), "");
+
+    let mut new_category =
+        menu.choose(Some(&categories), Some(&old_category_w_indicator), CATEGORY)?;
+    if new_category.is_empty() {
         show_list(menu, bookmarks_data, browser)?;
         return Ok(());
+    }
+    if new_category == old_category_w_indicator {
+        new_category = old_category;
     }
 
     let mut url = bookmark.url().to_string();
@@ -130,7 +147,7 @@ fn modify(
         return Ok(());
     }
 
-    let new_bookmark = Bookmark::new(title, category, url);
+    let new_bookmark = Bookmark::new(title, new_category, url);
 
     bookmarks_data.set_bookmark(new_bookmark, Some(bookmark));
 
