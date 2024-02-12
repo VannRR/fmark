@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use crate::bookmark::Bookmark;
@@ -6,6 +7,7 @@ use crate::{ADD_BOOKMARK, SEPARATOR_LINE_SYMBOL};
 
 pub struct ParsedFile {
     pub bookmarks: HashMap<String, Bookmark>,
+    title_char_count: HashMap<usize, usize>,
     pub invalid_lines: HashMap<usize, String>,
     category_count: HashMap<String, usize>,
     categories: Vec<String>,
@@ -19,6 +21,7 @@ impl ParsedFile {
     pub fn new(plain_text_bookmarks: &str) -> Self {
         let mut parsed_file = ParsedFile {
             bookmarks: HashMap::new(),
+            title_char_count: HashMap::new(),
             invalid_lines: HashMap::new(),
             category_count: HashMap::new(),
             categories: Vec::new(),
@@ -35,18 +38,8 @@ impl ParsedFile {
             }
             match Bookmark::from_line(trimmed_line) {
                 Some(bookmark) => {
-                    let title_char_count = bookmark.title().chars().count();
-                    if title_char_count > parsed_file.longest_title {
-                        parsed_file.previous_longest_title = parsed_file.longest_title;
-                        parsed_file.longest_title = title_char_count;
-                    }
-                    let category_char_count = bookmark.category().chars().count();
-                    if category_char_count > parsed_file.longest_category {
-                        parsed_file.previous_longest_category = parsed_file.longest_category;
-                        parsed_file.longest_category = category_char_count;
-                    }
-                    let category = bookmark.category().to_string();
-                    parsed_file.add_category(category);
+                    parsed_file.update_longest_title(bookmark.title());
+                    parsed_file.add_category(bookmark.category().to_string());
                     parsed_file
                         .bookmarks
                         .insert(bookmark.url().to_string(), bookmark);
@@ -79,11 +72,7 @@ impl ParsedFile {
         if self.add_category(new_bookmark.category().to_string()) {
             plain_text.increment_categories_version();
         };
-        let char_count = new_bookmark.title().chars().count();
-        if char_count > self.longest_title {
-            self.previous_longest_title = self.longest_title;
-            self.longest_title = char_count
-        }
+        self.update_longest_title(new_bookmark.title());
         self.bookmarks
             .insert(new_bookmark.url().to_string(), new_bookmark);
         plain_text.increment_bookmarks_version();
@@ -96,40 +85,37 @@ impl ParsedFile {
             if self.remove_category(category) {
                 plain_text.increment_categories_version();
             }
-            let char_count = bookmark.title().chars().count();
-            if char_count >= self.longest_title {
-                self.longest_title = self.previous_longest_title;
-            }
+            self.revert_longest_title(bookmark.title());
             plain_text.increment_bookmarks_version();
             plain_text.set_edited_true();
         }
     }
 
     pub fn add_category(&mut self, category: String) -> bool {
-        if self.category_count.get(&category).is_none() {
-            self.category_count.insert(category.clone(), 1);
-            if let Err(index) = self.categories.binary_search(&category) {
-                let char_count = category.chars().count();
-                if char_count > self.longest_category {
-                    self.previous_longest_category = self.longest_category;
-                    self.longest_category = char_count;
-                }
-
-                self.categories.insert(index, category);
-
-                return true;
+        match self.category_count.get_mut(&category) {
+            Some(count) => {
+                *count += 1;
             }
-        } else {
-            let count = self.category_count.get(&category).unwrap() + 1;
-            self.category_count.insert(category, count);
+            None => {
+                self.category_count.insert(category.clone(), 1);
+                if let Err(index) = self.categories.binary_search(&category) {
+                    let char_count = category.chars().count();
+                    if char_count > self.longest_category {
+                        self.previous_longest_category = self.longest_category;
+                        self.longest_category = char_count;
+                    };
+                    self.categories.insert(index, category);
+                    return true;
+                }
+            }
         }
         false
     }
 
     pub fn remove_category(&mut self, category: &str) -> bool {
-        if self.category_count.get(category).is_some() {
-            let count = self.category_count.get(category).unwrap() - 1;
-            if count == 0 {
+        if let Some(count) = self.category_count.get_mut(category) {
+            *count -= 1;
+            if *count == 0 {
                 if let Ok(index) = self.categories.binary_search(&category.to_string()) {
                     let char_count = category.chars().count();
                     if char_count >= self.longest_category {
@@ -139,15 +125,13 @@ impl ParsedFile {
                     self.categories.remove(index);
                     return true;
                 }
-            } else {
-                self.category_count.insert(category.to_string(), count);
-            };
+            }
         };
         false
     }
 
     pub fn add_bookmark_option_string(&self) -> String {
-        let padding = (self.longest_title + self.longest_category + 8)
+        let padding = (self.longest_title + self.longest_category + 11)
             .saturating_sub(ADD_BOOKMARK.chars().count());
         let left_padding = padding / 2;
         let right_padding = padding - left_padding;
@@ -157,6 +141,34 @@ impl ParsedFile {
             ADD_BOOKMARK,
             SEPARATOR_LINE_SYMBOL.repeat(right_padding)
         )
+    }
+
+    fn update_longest_title(&mut self, title: &str) {
+        let char_count = title.chars().count();
+        match char_count.cmp(&self.longest_title) {
+            Ordering::Greater => {
+                self.previous_longest_title = self.longest_title;
+                self.longest_title = char_count;
+                self.title_char_count.insert(char_count, 1);
+            }
+            Ordering::Equal => {
+                if let Some(amount) = self.title_char_count.get_mut(&char_count) {
+                    *amount += 1;
+                }
+            }
+            Ordering::Less => {}
+        }
+    }
+
+    fn revert_longest_title(&mut self, title: &str) {
+        let char_count = title.chars().count();
+        if let Some(amount) = self.title_char_count.get_mut(&char_count) {
+            *amount -= 1;
+            if *amount == 0 {
+                self.title_char_count.remove(&char_count);
+                self.longest_title = self.previous_longest_title;
+            }
+        }
     }
 }
 
@@ -226,5 +238,27 @@ mod tests {
         parsed_file.add_category(category_2.clone());
         assert!(parsed_file.remove_category(category_2.as_str()));
         assert_eq!(parsed_file.longest_category, char_count_1);
+    }
+
+    #[test]
+    fn test_parsed_file_update_longest_title() {
+        let mut parsed_file = ParsedFile::new("test");
+        let title = "test";
+        let char_count = title.chars().count();
+        parsed_file.update_longest_title(title);
+        assert_eq!(parsed_file.longest_title, char_count);
+    }
+
+    #[test]
+    fn test_parsed_file_revert_longest_title() {
+        let mut parsed_file = ParsedFile::new("test");
+        let title = "test";
+        let char_count = title.chars().count();
+        parsed_file.update_longest_title(title);
+        parsed_file.update_longest_title(title);
+        parsed_file.revert_longest_title(title);
+        assert_eq!(parsed_file.longest_title, char_count);
+        parsed_file.revert_longest_title(title);
+        assert_eq!(parsed_file.longest_title, 0);
     }
 }

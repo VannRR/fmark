@@ -74,7 +74,7 @@ impl PlainText {
         {
             return Err(format!(
                 "File larger than {} megabytes: {}",
-                MAX_FILE_SIZE / 1_000_000,
+                MAX_FILE_SIZE / 1024 / 1024,
                 self.file_path.display()
             ));
         }
@@ -117,7 +117,7 @@ impl PlainText {
         let separator_line = format!(
             "{}\n",
             SEPARATOR_LINE_SYMBOL
-                .repeat(parsed_file.longest_title + parsed_file.longest_category + 8)
+                .repeat(parsed_file.longest_title + parsed_file.longest_category + 11)
         );
 
         bookmarks_vec.sort_by(|a, b| {
