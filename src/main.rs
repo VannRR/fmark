@@ -1,14 +1,14 @@
 mod arguments;
 mod bookmark;
-mod data;
 mod menu;
 mod parsed_file;
 mod plain_text;
 
 use arguments::Arguments;
 use bookmark::Bookmark;
-use data::*;
 use menu::*;
+use parsed_file::ParsedFile;
+use plain_text::PlainText;
 
 use std::error::Error;
 use std::process::Command;
@@ -29,20 +29,29 @@ const CATEGORY: &str = "category";
 fn main() -> Result<(), Box<dyn Error>> {
     let arguments = Arguments::new()?;
 
-    let mut bookmarks_data = Data::new(arguments.bookmark_file_path)?;
+    let mut plain_text = PlainText::new(arguments.bookmark_file_path);
+    plain_text.read()?;
+
+    let mut parsed_file = ParsedFile::new(plain_text.bookmarks());
 
     let menu = Menu::new(arguments.menu_program, arguments.menu_rows)?;
-    show_list(menu, &mut bookmarks_data, arguments.browser)?;
+    show_list(&mut plain_text, &mut parsed_file, menu, arguments.browser)?;
 
-    bookmarks_data.write()?;
+    plain_text.write(&parsed_file)?;
 
     Ok(())
 }
 
-fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), String> {
-    let add_bookmark_option_string = bookmarks_data.add_bookmark_option_string();
+fn show_list(
+    plain_text: &mut PlainText,
+    parsed_file: &mut ParsedFile,
+    menu: Menu,
+    browser: String,
+) -> Result<(), String> {
+    let add_bookmark_option_string = parsed_file.add_bookmark_option_string();
 
-    let bookmarks_list = Some(bookmarks_data.plain_text_bookmarks());
+    plain_text.update_bookmarks(parsed_file);
+    let bookmarks_list = Some(plain_text.bookmarks());
     let file_line = menu.choose(
         bookmarks_list,
         Some(&add_bookmark_option_string),
@@ -55,20 +64,20 @@ fn show_list(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(
     if let Some(bookmark) = Bookmark::from_line(&file_line) {
         let option = menu.choose(Some(OPTIONS), None, "options")?;
         if option.is_empty() {
-            show_list(menu, bookmarks_data, browser)?;
+            show_list(plain_text, parsed_file, menu, browser)?;
             return Ok(());
         }
         match option.as_str() {
             OPTIONS_GOTO => goto(browser, bookmark.url())?,
-            OPTIONS_MODIFY => modify(menu, bookmarks_data, bookmark, browser)?,
-            OPTIONS_REMOVE => remove(menu, bookmarks_data, bookmark, browser)?,
+            OPTIONS_MODIFY => modify(plain_text, parsed_file, menu, browser, bookmark)?,
+            OPTIONS_REMOVE => remove(plain_text, parsed_file, menu, browser, bookmark)?,
             OPTIONS_CANCEL => {
-                show_list(menu, bookmarks_data, browser)?;
+                show_list(plain_text, parsed_file, menu, browser)?;
             }
             _ => (),
         };
     } else if file_line.contains(&add_bookmark_option_string) {
-        create(menu, bookmarks_data, browser)?;
+        create(plain_text, parsed_file, menu, browser)?;
     };
 
     Ok(())
@@ -83,57 +92,65 @@ fn goto(browser: String, url: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn create(menu: Menu, bookmarks_data: &mut Data, browser: String) -> Result<(), String> {
+fn create(
+    plain_text: &mut PlainText,
+    parsed_file: &mut ParsedFile,
+    menu: Menu,
+    browser: String,
+) -> Result<(), String> {
     let title = menu.choose(None, None, TITLE)?;
     if title.is_empty() {
-        show_list(menu, bookmarks_data, browser)?;
+        show_list(plain_text, parsed_file, menu, browser)?;
         return Ok(());
     }
 
-    let categories = Some(bookmarks_data.plain_text_categories());
+    plain_text.update_categories(parsed_file);
+    let categories = Some(plain_text.categories());
     let category = menu.choose(categories, None, CATEGORY)?;
     if category.is_empty() {
-        show_list(menu, bookmarks_data, browser)?;
+        show_list(plain_text, parsed_file, menu, browser)?;
         return Ok(());
     }
 
     let url = menu.choose(None, None, URL)?;
     if url.is_empty() {
-        show_list(menu, bookmarks_data, browser)?;
+        show_list(plain_text, parsed_file, menu, browser)?;
         return Ok(());
     }
 
     let new_bookmark = Bookmark::new(title, category, url);
 
-    bookmarks_data.set_bookmark(new_bookmark, None);
+    parsed_file.set_bookmark(plain_text, new_bookmark, None);
 
-    show_list(menu, bookmarks_data, browser)
+    show_list(plain_text, parsed_file, menu, browser)
 }
 
 fn modify(
+    plain_text: &mut PlainText,
+    parsed_file: &mut ParsedFile,
     menu: Menu,
-    bookmarks_data: &mut Data,
-    bookmark: Bookmark,
     browser: String,
+    bookmark: Bookmark,
 ) -> Result<(), String> {
     let mut title = bookmark.title().to_string();
     title = menu.choose(Some(&title), None, TITLE)?;
     if title.is_empty() {
-        show_list(menu, bookmarks_data, browser)?;
+        show_list(plain_text, parsed_file, menu, browser)?;
         return Ok(());
     }
 
     let old_category = bookmark.category().to_string();
     let old_category_w_indicator = format!("{} {}", old_category, "<-- current");
 
-    let categories = bookmarks_data
-        .plain_text_categories()
+    plain_text.update_categories(parsed_file);
+    let categories = plain_text
+        .categories()
         .replace(&format!("{}\n", old_category), "");
 
     let mut new_category =
         menu.choose(Some(&categories), Some(&old_category_w_indicator), CATEGORY)?;
     if new_category.is_empty() {
-        show_list(menu, bookmarks_data, browser)?;
+        show_list(plain_text, parsed_file, menu, browser)?;
         return Ok(());
     }
     if new_category == old_category_w_indicator {
@@ -143,31 +160,32 @@ fn modify(
     let mut url = bookmark.url().to_string();
     url = menu.choose(Some(&url), None, URL)?;
     if url.is_empty() {
-        show_list(menu, bookmarks_data, browser)?;
+        show_list(plain_text, parsed_file, menu, browser)?;
         return Ok(());
     }
 
     let new_bookmark = Bookmark::new(title, new_category, url);
 
-    bookmarks_data.set_bookmark(new_bookmark, Some(bookmark));
+    parsed_file.set_bookmark(plain_text, new_bookmark, Some(bookmark));
 
-    show_list(menu, bookmarks_data, browser)
+    show_list(plain_text, parsed_file, menu, browser)
 }
 
 fn remove(
+    plain_text: &mut PlainText,
+    parsed_file: &mut ParsedFile,
     menu: Menu,
-    bookmarks_data: &mut Data,
-    bookmark: Bookmark,
     browser: String,
+    bookmark: Bookmark,
 ) -> Result<(), String> {
     let prompt = format!("Remove {}? (yes/no)", bookmark.title().trim());
     let answer = menu.choose(None, None, &prompt)?;
     if answer.to_lowercase() != "yes" {
-        show_list(menu, bookmarks_data, browser)?;
+        show_list(plain_text, parsed_file, menu, browser)?;
         return Ok(());
     }
 
-    bookmarks_data.remove_bookmark(bookmark.url());
+    parsed_file.remove_bookmark(plain_text, bookmark.url());
 
-    show_list(menu, bookmarks_data, browser)
+    show_list(plain_text, parsed_file, menu, browser)
 }

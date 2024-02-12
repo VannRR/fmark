@@ -20,8 +20,8 @@ pub struct PlainText {
 }
 
 impl PlainText {
-    pub fn new(file_path: PathBuf) -> Result<Self, String> {
-        Ok(Self {
+    pub fn new(file_path: PathBuf) -> Self {
+        Self {
             file_path,
             bookmarks: String::new(),
             previous_bookmarks_version: 0,
@@ -32,7 +32,7 @@ impl PlainText {
             current_categories_version: 0,
             categories_initialized: false,
             edited: false,
-        })
+        }
     }
 
     pub fn bookmarks(&self) -> &str {
@@ -193,18 +193,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_plain_text_new() {
-        let path = PathBuf::from("test.txt");
-        let _ = File::create(path.clone()).unwrap();
-        let plain_text = PlainText::new(path);
-        assert!(plain_text.is_ok());
-    }
-
-    #[test]
     fn test_plain_text_read() {
         let path = PathBuf::from("test.txt");
         let _ = File::create(path.clone()).unwrap();
-        let mut plain_text = PlainText::new(path).unwrap();
+        let mut plain_text = PlainText::new(path);
         assert!(plain_text.read().is_ok());
     }
 
@@ -212,7 +204,7 @@ mod tests {
     fn test_plain_text_write() {
         let path = PathBuf::from("test.txt");
         let _ = File::create(path.clone()).unwrap();
-        let mut plain_text = PlainText::new(path).unwrap();
+        let mut plain_text = PlainText::new(path);
         let parsed_file = ParsedFile::new(plain_text.bookmarks());
         assert!(plain_text.write(&parsed_file).is_ok());
     }
@@ -221,7 +213,7 @@ mod tests {
     fn test_plain_text_update_bookmarks() {
         let path = PathBuf::from("test.txt");
         let _ = File::create(path.clone()).unwrap();
-        let mut plain_text = PlainText::new(path).unwrap();
+        let mut plain_text = PlainText::new(path);
         let mut parsed_file = ParsedFile::new(plain_text.bookmarks());
         parsed_file.bookmarks.insert(
             "url".to_string(),
@@ -239,7 +231,7 @@ mod tests {
     fn test_plain_text_update_categories() {
         let path = PathBuf::from("test.txt");
         let _ = File::create(path.clone()).unwrap();
-        let mut plain_text = PlainText::new(path).unwrap();
+        let mut plain_text = PlainText::new(path);
         let mut parsed_file = ParsedFile::new(plain_text.bookmarks());
         parsed_file.add_category("category".to_string());
         plain_text.update_categories(&parsed_file);
