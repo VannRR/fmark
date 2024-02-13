@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 
+use crate::{CATEGORY_MAX_LENGTH, TITLE_MAX_LENGTH};
+
 const TITLE_MARKER: &str = "T";
-const TITLE_MAX_LENGTH: usize = 35;
 
 const CATEGORY_MARKER: &str = "C";
-const CATEGORY_MAX_LENGTH: usize = 35;
 
 const URL_MARKER: &str = "U";
 const URL_MAX_LENGTH: usize = 2048;

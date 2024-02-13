@@ -15,6 +15,8 @@ use std::process::Command;
 
 pub const SEPARATOR_LINE_SYMBOL: &str = "-";
 pub const ADD_BOOKMARK: &str = "-| Add Bookmark |-";
+pub const TITLE_MAX_LENGTH: usize = 35;
+pub const CATEGORY_MAX_LENGTH: usize = 35;
 
 const OPTIONS_GOTO: &str = "goto";
 const OPTIONS_MODIFY: &str = "modify";

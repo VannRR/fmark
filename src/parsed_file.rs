@@ -1,19 +1,17 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use crate::bookmark::Bookmark;
 use crate::plain_text::PlainText;
-use crate::{ADD_BOOKMARK, SEPARATOR_LINE_SYMBOL};
+use crate::{ADD_BOOKMARK, CATEGORY_MAX_LENGTH, SEPARATOR_LINE_SYMBOL, TITLE_MAX_LENGTH};
 
 pub struct ParsedFile {
     pub bookmarks: HashMap<String, Bookmark>,
-    title_char_count: HashMap<usize, usize>,
-    pub invalid_lines: HashMap<usize, String>,
-    category_count: HashMap<String, usize>,
-    categories: Vec<String>,
-    previous_longest_title: usize,
+    titles_char_count: Vec<usize>,
     pub longest_title: usize,
-    previous_longest_category: usize,
+    pub invalid_lines: HashMap<usize, String>,
+    categories: Vec<String>,
+    category_count: HashMap<String, usize>,
+    categories_char_count: Vec<usize>,
     pub longest_category: usize,
 }
 
@@ -21,15 +19,15 @@ impl ParsedFile {
     pub fn new(plain_text_bookmarks: &str) -> Self {
         let mut parsed_file = ParsedFile {
             bookmarks: HashMap::new(),
-            title_char_count: HashMap::new(),
+            titles_char_count: vec![0; TITLE_MAX_LENGTH + 1],
             invalid_lines: HashMap::new(),
-            category_count: HashMap::new(),
             categories: Vec::new(),
-            previous_longest_title: 0,
+            category_count: HashMap::new(),
+            categories_char_count: vec![0; CATEGORY_MAX_LENGTH + 1],
             longest_title: 0,
-            previous_longest_category: 0,
             longest_category: 0,
         };
+
         let lines = plain_text_bookmarks.lines();
         for (i, line) in lines.enumerate() {
             let trimmed_line = line.trim();
@@ -38,7 +36,7 @@ impl ParsedFile {
             }
             match Bookmark::from_line(trimmed_line) {
                 Some(bookmark) => {
-                    parsed_file.update_longest_title(bookmark.title());
+                    parsed_file.add_titles_char_count(bookmark.title());
                     parsed_file.add_category(bookmark.category().to_string());
                     parsed_file
                         .bookmarks
@@ -72,7 +70,7 @@ impl ParsedFile {
         if self.add_category(new_bookmark.category().to_string()) {
             plain_text.increment_categories_version();
         };
-        self.update_longest_title(new_bookmark.title());
+        self.add_titles_char_count(new_bookmark.title());
         self.bookmarks
             .insert(new_bookmark.url().to_string(), new_bookmark);
         plain_text.increment_bookmarks_version();
@@ -85,7 +83,7 @@ impl ParsedFile {
             if self.remove_category(category) {
                 plain_text.increment_categories_version();
             }
-            self.revert_longest_title(bookmark.title());
+            self.remove_titles_char_count(bookmark.title());
             plain_text.increment_bookmarks_version();
             plain_text.set_edited_true();
         }
@@ -99,11 +97,7 @@ impl ParsedFile {
             None => {
                 self.category_count.insert(category.clone(), 1);
                 if let Err(index) = self.categories.binary_search(&category) {
-                    let char_count = category.chars().count();
-                    if char_count > self.longest_category {
-                        self.previous_longest_category = self.longest_category;
-                        self.longest_category = char_count;
-                    };
+                    self.add_category_char_count(&category);
                     self.categories.insert(index, category);
                     return true;
                 }
@@ -117,11 +111,7 @@ impl ParsedFile {
             *count -= 1;
             if *count == 0 {
                 if let Ok(index) = self.categories.binary_search(&category.to_string()) {
-                    let char_count = category.chars().count();
-                    if char_count >= self.longest_category {
-                        self.longest_category = self.previous_longest_category;
-                    }
-
+                    self.remove_category_char_count(category);
                     self.categories.remove(index);
                     return true;
                 }
@@ -143,30 +133,55 @@ impl ParsedFile {
         )
     }
 
-    fn update_longest_title(&mut self, title: &str) {
-        let char_count = title.chars().count();
-        match char_count.cmp(&self.longest_title) {
-            Ordering::Greater => {
-                self.previous_longest_title = self.longest_title;
-                self.longest_title = char_count;
-                self.title_char_count.insert(char_count, 1);
-            }
-            Ordering::Equal => {
-                if let Some(amount) = self.title_char_count.get_mut(&char_count) {
-                    *amount += 1;
-                }
-            }
-            Ordering::Less => {}
+    fn add_titles_char_count(&mut self, title: &str) {
+        Self::add_char_count(&mut self.titles_char_count, &mut self.longest_title, title);
+    }
+
+    fn remove_titles_char_count(&mut self, title: &str) {
+        Self::remove_char_count(&mut self.titles_char_count, &mut self.longest_title, title);
+    }
+
+    fn add_category_char_count(&mut self, category: &str) {
+        Self::add_char_count(
+            &mut self.categories_char_count,
+            &mut self.longest_category,
+            category,
+        );
+    }
+
+    fn remove_category_char_count(&mut self, category: &str) {
+        Self::remove_char_count(
+            &mut self.categories_char_count,
+            &mut self.longest_category,
+            category,
+        );
+    }
+
+    fn add_char_count(char_count_vec: &mut [usize], longest: &mut usize, field: &str) {
+        let char_count = field.chars().count();
+        if char_count > *longest {
+            *longest = char_count;
+        }
+
+        if let Some(amount) = char_count_vec.get_mut(char_count) {
+            *amount += 1;
         }
     }
 
-    fn revert_longest_title(&mut self, title: &str) {
-        let char_count = title.chars().count();
-        if let Some(amount) = self.title_char_count.get_mut(&char_count) {
+    fn remove_char_count(char_count_vec: &mut [usize], longest: &mut usize, field: &str) {
+        let char_count = field.chars().count();
+        if let Some(amount) = char_count_vec.get_mut(char_count) {
             *amount -= 1;
             if *amount == 0 {
-                self.title_char_count.remove(&char_count);
-                self.longest_title = self.previous_longest_title;
+                for i in (1..=char_count).rev() {
+                    if let Some(amount) = char_count_vec.get(i) {
+                        if *amount > 0 {
+                            *longest = i;
+                            return;
+                        }
+                    }
+                }
+                *longest = 0;
             }
         }
     }
@@ -241,24 +256,39 @@ mod tests {
     }
 
     #[test]
-    fn test_parsed_file_update_longest_title() {
-        let mut parsed_file = ParsedFile::new("test");
-        let title = "test";
-        let char_count = title.chars().count();
-        parsed_file.update_longest_title(title);
-        assert_eq!(parsed_file.longest_title, char_count);
+    fn test_parsed_file_add_char_count() {
+        let mut char_count_vec = [0; 10];
+        let mut longest: usize = 0;
+        let field = "test";
+        let char_count = field.chars().count();
+        ParsedFile::add_char_count(&mut char_count_vec, &mut longest, field);
+        assert_eq!(longest, char_count);
     }
 
     #[test]
-    fn test_parsed_file_revert_longest_title() {
-        let mut parsed_file = ParsedFile::new("test");
-        let title = "test";
-        let char_count = title.chars().count();
-        parsed_file.update_longest_title(title);
-        parsed_file.update_longest_title(title);
-        parsed_file.revert_longest_title(title);
-        assert_eq!(parsed_file.longest_title, char_count);
-        parsed_file.revert_longest_title(title);
-        assert_eq!(parsed_file.longest_title, 0);
+    fn test_parsed_file_remove_char_count() {
+        let mut char_count_vec = [0; 10];
+        let mut longest: usize = 0;
+        let field1 = "1";
+        let char_count1 = field1.chars().count();
+        let field2 = "22";
+        let char_count2 = field2.chars().count();
+        let field3 = "333";
+        let char_count3 = field3.chars().count();
+        let field4 = "4444";
+        let char_count4 = field4.chars().count();
+        ParsedFile::add_char_count(&mut char_count_vec, &mut longest, field1);
+        ParsedFile::add_char_count(&mut char_count_vec, &mut longest, field2);
+        ParsedFile::add_char_count(&mut char_count_vec, &mut longest, field3);
+        ParsedFile::add_char_count(&mut char_count_vec, &mut longest, field4);
+        assert_eq!(longest, char_count4);
+        ParsedFile::remove_char_count(&mut char_count_vec, &mut longest, field4);
+        assert_eq!(longest, char_count3);
+        ParsedFile::remove_char_count(&mut char_count_vec, &mut longest, field3);
+        assert_eq!(longest, char_count2);
+        ParsedFile::remove_char_count(&mut char_count_vec, &mut longest, field2);
+        assert_eq!(longest, char_count1);
+        ParsedFile::remove_char_count(&mut char_count_vec, &mut longest, field1);
+        assert_eq!(longest, 0);
     }
 }
