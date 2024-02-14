@@ -79,7 +79,7 @@ fn show_list(
             _ => (),
         };
     } else if file_line.contains(&add_bookmark_option_string) {
-        create(plain_text, parsed_file, menu, browser)?;
+        add(plain_text, parsed_file, menu, browser)?;
     };
 
     Ok(())
@@ -94,7 +94,7 @@ fn goto(browser: String, url: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn create(
+fn add(
     plain_text: &mut PlainText,
     parsed_file: &mut ParsedFile,
     menu: Menu,
@@ -122,7 +122,7 @@ fn create(
 
     let new_bookmark = Bookmark::new(title, category, url);
 
-    parsed_file.set_bookmark(plain_text, new_bookmark, None);
+    parsed_file.add_bookmark(plain_text, new_bookmark);
 
     show_list(plain_text, parsed_file, menu, browser)
 }
@@ -168,7 +168,7 @@ fn modify(
 
     let new_bookmark = Bookmark::new(title, new_category, url);
 
-    parsed_file.set_bookmark(plain_text, new_bookmark, Some(bookmark));
+    parsed_file.modify_bookmark(plain_text, new_bookmark, &bookmark);
 
     show_list(plain_text, parsed_file, menu, browser)
 }

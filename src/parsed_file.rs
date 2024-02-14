@@ -58,21 +58,51 @@ impl ParsedFile {
         &self.categories
     }
 
-    pub fn set_bookmark(
-        &mut self,
-        plain_text: &mut PlainText,
-        new_bookmark: Bookmark,
-        old_bookmark: Option<Bookmark>,
-    ) {
-        if let Some(old_bookmark) = old_bookmark {
-            self.remove_bookmark(plain_text, old_bookmark.url());
-        }
+    pub fn add_bookmark(&mut self, plain_text: &mut PlainText, new_bookmark: Bookmark) {
         if self.add_category(new_bookmark.category().to_string()) {
             plain_text.increment_categories_version();
         };
         self.add_titles_char_count(new_bookmark.title());
         self.bookmarks
             .insert(new_bookmark.url().to_string(), new_bookmark);
+        plain_text.increment_bookmarks_version();
+        plain_text.set_edited_true();
+    }
+
+    pub fn modify_bookmark(
+        &mut self,
+        plain_text: &mut PlainText,
+        new_bookmark: Bookmark,
+        old_bookmark: &Bookmark,
+    ) {
+        if old_bookmark == &new_bookmark {
+            return;
+        }
+
+        let old_title = old_bookmark.title();
+        let old_category = old_bookmark.category();
+        let old_url = old_bookmark.url();
+        let new_title = new_bookmark.title();
+        let new_category = new_bookmark.category();
+        let new_url = new_bookmark.url();
+
+        if old_title != new_title {
+            self.remove_titles_char_count(old_title);
+            self.add_titles_char_count(new_title);
+        }
+        if old_category != new_category {
+            let removed = self.remove_category(old_category);
+            let added = self.add_category(new_category.to_string());
+            if removed || added {
+                plain_text.increment_categories_version();
+            }
+        }
+        if old_url != new_url {
+            self.bookmarks.remove(old_url);
+            self.bookmarks.insert(new_url.to_string(), new_bookmark);
+        } else {
+            self.bookmarks.insert(old_url.to_string(), new_bookmark);
+        }
         plain_text.increment_bookmarks_version();
         plain_text.set_edited_true();
     }
@@ -159,6 +189,10 @@ impl ParsedFile {
 
     fn add_char_count(char_count_vec: &mut [usize], longest: &mut usize, field: &str) {
         let char_count = field.chars().count();
+        if char_count == 0 {
+            return;
+        }
+
         if char_count > *longest {
             *longest = char_count;
         }
@@ -170,6 +204,9 @@ impl ParsedFile {
 
     fn remove_char_count(char_count_vec: &mut [usize], longest: &mut usize, field: &str) {
         let char_count = field.chars().count();
+        if char_count == 0 {
+            return;
+        }
         if let Some(amount) = char_count_vec.get_mut(char_count) {
             *amount -= 1;
             if *amount == 0 {
@@ -207,16 +244,40 @@ mod tests {
     }
 
     #[test]
-    fn test_parsed_file_set_bookmark() {
+    fn test_parsed_file_add_bookmark() {
         let mut plain_text = PlainText::new(PathBuf::from("test.txt"));
         let mut parsed_file = ParsedFile::new(plain_text.bookmarks());
         let bookmark = Bookmark::default();
         let char_count = bookmark.title().chars().count();
-        parsed_file.set_bookmark(&mut plain_text, bookmark, None);
+        parsed_file.add_bookmark(&mut plain_text, bookmark);
         assert_eq!(parsed_file.bookmarks.len(), 1);
         assert_eq!(parsed_file.categories().len(), 1);
         assert!(plain_text.edited());
         assert_eq!(parsed_file.longest_title, char_count);
+    }
+
+    #[test]
+    fn test_parsed_file_modify_bookmark() {
+        let mut plain_text = PlainText::new(PathBuf::from("test.txt"));
+        let mut parsed_file = ParsedFile::new(plain_text.bookmarks());
+        let old_bookmark = Bookmark::default();
+        parsed_file.add_bookmark(&mut plain_text, old_bookmark.clone());
+        let title = "new title".to_string();
+        let category = "new category".to_string();
+        let url = "new url".to_string();
+        let new_bookmark = Bookmark::new(url, title, category);
+        parsed_file.modify_bookmark(&mut plain_text, new_bookmark.clone(), &old_bookmark);
+        assert_eq!(parsed_file.bookmarks.len(), 1);
+        assert_eq!(parsed_file.categories().len(), 1);
+        assert!(plain_text.edited());
+        assert_eq!(
+            parsed_file.longest_title,
+            new_bookmark.title().chars().count()
+        );
+        assert_eq!(
+            parsed_file.longest_category,
+            new_bookmark.category().chars().count()
+        )
     }
 
     #[test]
@@ -226,7 +287,7 @@ mod tests {
         let bookmark = Bookmark::default();
         let char_count = bookmark.title().chars().count();
         let url = bookmark.url().to_string();
-        parsed_file.set_bookmark(&mut plain_text, bookmark, None);
+        parsed_file.add_bookmark(&mut plain_text, bookmark);
         parsed_file.remove_bookmark(&mut plain_text, &url);
         assert!(parsed_file.bookmarks.is_empty());
         assert!(parsed_file.categories().is_empty());

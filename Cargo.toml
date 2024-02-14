@@ -1,6 +1,6 @@
 [package]
 name = "fmark"
-version = "1.0.4"
+version = "1.0.5"
 authors = ["Vann Rollins (https://github.com/vannrr)"]
 edition = "2021"
 
