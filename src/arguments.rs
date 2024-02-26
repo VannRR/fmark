@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::bookmark::Bookmark;
 
 const SUPPORTED_MENU_PROGRAMS: [&str; 4] = ["bemenu", "dmenu", "rofi", "fzf"];
-const ENV_VARIABLE: &str = "BM_DEFAULT_OPTS";
+const ENV_VARIABLE: &str = "FMARK_DEFAULT_OPTS";
 const DEFAULT_MENU_PROGRAM: &str = "bemenu";
 const DEFAULT_BROWSER: &str = "firefox";
 const DEFAULT_BOOKMARK_FILE_PATH: &str = ".bookmarks";

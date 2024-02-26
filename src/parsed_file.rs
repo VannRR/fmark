@@ -209,7 +209,7 @@ impl ParsedFile {
         }
         if let Some(amount) = char_count_vec.get_mut(char_count) {
             *amount -= 1;
-            if *amount == 0 {
+            if *amount == 0 && char_count == *longest {
                 for i in (1..=char_count).rev() {
                     if let Some(amount) = char_count_vec.get(i) {
                         if *amount > 0 {
