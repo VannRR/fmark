@@ -49,7 +49,7 @@ Options:
   -h, --help             Show this help message and exit.
 
 Environment Variables:
-BM_DEFAULT_OPTS          Default options
+FMARK_DEFAULT_OPTS       Default options
                          (e.g. '--menu bemenu --rows 20')
 ```
 
